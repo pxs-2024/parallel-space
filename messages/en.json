@@ -1,0 +1,15 @@
+{
+  "nav": {
+    "title": "ParallelSpace",
+    "language": "Language",
+    "themeToggle": "Theme Toggle",
+    "signUp": "Sign Up",
+    "signIn": "Sign In"
+  },
+  "account": {
+    "myAccount": "My Account",
+    "profile": "Profile",
+    "password": "Password",
+    "signOut": "Sign Out"
+  }
+}

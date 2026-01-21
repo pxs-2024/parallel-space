@@ -1,9 +1,10 @@
-const HomePage = () => {
-  return (
-    <div className="flex-1 flex flex-col gap-y-8">
-      todo
-    </div>
-  );
+import { homePath } from "@/paths";
+import { redirect } from '@/i18n/navigation'
+import { useLocale } from "next-intl";
+
+const RedirectPage = () => {
+	const locale = useLocale();
+	redirect({ href: homePath(), locale: locale });
 }
 
-export default HomePage;
+export default RedirectPage;

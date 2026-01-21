@@ -1,0 +1,15 @@
+{
+  "nav": {
+    "title": "平行空间",
+    "language": "语言",
+    "themeToggle": "主题切换",
+    "signUp": "注册",
+    "signIn": "登录"
+  },
+  "account": {
+    "myAccount": "我的账户",
+    "profile": "个人资料",
+    "password": "密码",
+    "signOut": "退出登录"
+  }
+}

@@ -1,7 +1,7 @@
 import { CardCompact } from "@/components/card-compact";
 import { SignInForm } from "@/features/auth/components/sign-in-form";
 import { passwordForgotPath, signUpPath } from "@/paths";
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 
 const SignInPage = () => {
 	return (

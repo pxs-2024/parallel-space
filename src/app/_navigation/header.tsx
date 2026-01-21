@@ -3,14 +3,16 @@
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { homePath, signInPath, signUpPath } from "@/paths";
 import { LucideBadge } from "lucide-react";
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { ThemeSwitcher } from "../../components/theme/theme-switcher";
 import { buttonVariants } from "../../components/ui/button";
 import { AccountDropdown } from "./account-dropdown";
+import { useTranslations } from "next-intl";
+import { LocalSwitch } from "@/components/i18n/local-switch";
 
 const Header = () => {
 	const { user, isFetched } = useAuth();
-
+	const t = useTranslations("nav");
 	if (!isFetched) {
 		return null;
 	}
@@ -25,7 +27,7 @@ const Header = () => {
 				})}
 				href={signUpPath()}
 			>
-				Sign Up
+				{t("signUp")}
 			</Link>
 			<Link
 				className={buttonVariants({
@@ -33,7 +35,7 @@ const Header = () => {
 				})}
 				href={signInPath()}
 			>
-				Sign In
+				{t("signIn")}							
 			</Link>
 		</>
 	);
@@ -56,10 +58,11 @@ const Header = () => {
 					href={homePath()}
 				>
 					<LucideBadge />
-					<h1 className="ml-2 text-lg font-semibold">TicketBounty</h1>
+					<h1 className="ml-2 text-lg font-semibold">{t("title")}</h1>
 				</Link>
 			</div>
 			<div className="flex align-items gap-x-2">
+				<LocalSwitch />	
 				<ThemeSwitcher />
 				{navItems}
 			</div>
