@@ -2,13 +2,13 @@
 
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { SessionPublic, SessionWithToken } from "./types";
+import { SessionPublic } from "./types";
 import { generateSecureRandomString, hashSecret, constantTimeEqual } from "./utils";
 
 /**
  * 创建 session，并返回要下发给客户端的 token
  */
-export async function createSession(userId: string): Promise<SessionWithToken> {
+export async function createSession(userId: string): Promise<SessionPublic & { token: string }> {
   const now = new Date();
   const id = generateSecureRandomString();
   const secret = generateSecureRandomString();
@@ -16,14 +16,23 @@ export async function createSession(userId: string): Promise<SessionWithToken> {
 
   const token = `${id}.${secret}`;
 
+  // 创建一个新的 Uint8Array 以确保类型兼容性（从 ArrayBufferLike 转换为 ArrayBuffer）
+  // 通过复制数据创建新的 ArrayBuffer
+  // todo
+  const secretHashBuffer = new Uint8Array(secretHash.length);
+  secretHashBuffer.set(secretHash);
+
   const row = await prisma.session.create({
     data: {
       id,
       userId,
-      secretHash, // Prisma 6 使用 Uint8Array
+      secretHash: secretHashBuffer,
       createdAt: now,
     },
-    include: {
+    select: {
+      id: true,
+      userId: true,
+      createdAt: true,
       user: {
         select: {
           id: true,
