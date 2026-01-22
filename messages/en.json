@@ -11,5 +11,10 @@
     "profile": "Profile",
     "password": "Password",
     "signOut": "Sign Out"
+  },
+  "side": {
+    "decisions": "Decisions",
+    "spaces": "Spaces",
+    "account": "Account"
   }
 }

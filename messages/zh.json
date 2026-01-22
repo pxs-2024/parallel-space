@@ -11,5 +11,10 @@
     "profile": "个人资料",
     "password": "密码",
     "signOut": "退出登录"
+  },
+  "side": {
+    "decisions": "决策",
+    "spaces": "空间",
+    "account": "个人资料"
   }
 }

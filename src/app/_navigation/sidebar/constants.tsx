@@ -4,18 +4,18 @@ import { NavItem } from "./types";
 
 export const navItems: NavItem[] = [
 	{
-		title: "Home",
+		title: "decisions",
 		icon: <LucideLibrary></LucideLibrary>,
 		href: homePath(),
 	},
 	{
-		title: "Home2",
+		title: "spaces",
 		icon: <LucideBook></LucideBook>,
 		href: homePath(),
 	},
 	{
 		separator: true,
-		title: "Account",
+		title: "account",
 		icon: <LucideCircleUser />,
 		href: accountProfilePath(),
 	},

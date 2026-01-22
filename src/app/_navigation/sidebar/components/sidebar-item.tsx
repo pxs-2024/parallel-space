@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { closedClassName } from "../constants";
 import { NavItem } from "../types";
+import { useTranslations } from "next-intl";
 
 type SidebarItemProps = {
 	isOpen: boolean;
@@ -13,6 +14,7 @@ type SidebarItemProps = {
 };
 
 const SidebarItem = ({ isOpen, isActive, navItem }: SidebarItemProps) => {
+	const t = useTranslations("side");
 	return (
 		<>
 			{navItem.separator && <Separator />}
@@ -34,7 +36,7 @@ const SidebarItem = ({ isOpen, isActive, navItem }: SidebarItemProps) => {
 						!isOpen && closedClassName
 					)}
 				>
-					{navItem.title}
+					{t(navItem.title)}
 				</span>
 			</Link>
 		</>
