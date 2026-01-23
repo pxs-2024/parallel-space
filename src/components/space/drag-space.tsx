@@ -12,23 +12,20 @@ import { cn } from "@/lib/utils";
 type DragSpaceProps = {
 	children: React.ReactNode;
 	onDragEnd: (e: DragEndEvent) => void;
+	viewport: Viewport;
+	onViewportChange: (vp: Viewport) => void;
 };
 
-export const DragSpace = ({ children, onDragEnd }: DragSpaceProps) => {
+export const DragSpace = ({
+	children,
+	onDragEnd,
+	viewport: vp,
+	onViewportChange: setVp,
+}: DragSpaceProps) => {
 	const containerRef = useRef<HTMLDivElement | null>(null);
-	const [vp, setVp] = useState<Viewport>({ vx: 0, vy: 0, scale: 1 });
 
-	const resetViewport = useCallback(() => {
-		setVp({ vx: 0, vy: 0, scale: 1 });
-	}, []);
-
-	const sensors = useSensors(
-		useSensor(PointerSensor, {
-			activationConstraint: {
-				distance: 10,
-			},
-		})
-	);
+	const sensors = useSensors(useSensor(PointerSensor));
+	
 	const { spaceDown } = useListenSpace();
 	const panRef = useRef<{
 		startClientX: number; // 开始平移时鼠标X坐标
@@ -42,14 +39,7 @@ export const DragSpace = ({ children, onDragEnd }: DragSpaceProps) => {
 	useEffect(() => {
 		vpRef.current = vp;
 	}, [vp]);
-	const rectMemo = useRef<DOMRect>(undefined);
-	const getBoundClientMemo = () => {
-		if (rectMemo.current) {
-			return rectMemo.current;
-		}
-		rectMemo.current = containerRef.current?.getBoundingClientRect();
-		return rectMemo.current;
-	};
+
 	/**
 	 * 鼠标滚轮缩放事件处理
 	 * @param e 鼠标滚轮事件对象
@@ -60,7 +50,7 @@ export const DragSpace = ({ children, onDragEnd }: DragSpaceProps) => {
 			if (!el) return;
 			// 获取容器的边界信息
 			// todo
-			const rect = getBoundClientMemo();
+			const rect = el.getBoundingClientRect();
 			if (!rect) return;
 
 			const mx = e.clientX - rect.left; // 鼠标在容器内的X坐标
@@ -84,7 +74,7 @@ export const DragSpace = ({ children, onDragEnd }: DragSpaceProps) => {
 			// 更新视口状态
 			setVp({ vx: nextVx, vy: nextVy, scale: nextScale });
 		},
-		[vp.scale, vp.vx, vp.vy]
+		[vp.scale, vp.vx, vp.vy, setVp]
 	);
 	/**
 	 * 鼠标按下事件处理（开始平移）
@@ -111,23 +101,26 @@ export const DragSpace = ({ children, onDragEnd }: DragSpaceProps) => {
 	 * 鼠标移动事件处理（执行平移）
 	 * @param e 鼠标事件对象
 	 */
-	const onMouseMove = useCallback((e: React.MouseEvent) => {
-		if (!panRef.current) return;
+	const onMouseMove = useCallback(
+		(e: React.MouseEvent) => {
+			if (!panRef.current) return;
 
-		// 计算鼠标移动的距离
-		const dx = e.clientX - panRef.current.startClientX;
-		const dy = e.clientY - panRef.current.startClientY;
+			// 计算鼠标移动的距离
+			const dx = e.clientX - panRef.current.startClientX;
+			const dy = e.clientY - panRef.current.startClientY;
 
-		// 使用最新的vp值进行计算，避免闭包问题
-		const currentVp = vpRef.current;
+			// 使用最新的vp值进行计算，避免闭包问题
+			const currentVp = vpRef.current;
 
-		// 更新视口的平移值
-		setVp({
-			...currentVp,
-			vx: panRef.current.startTx + dx,
-			vy: panRef.current.startTy + dy,
-		});
-	}, []);
+			// 更新视口的平移值
+			setVp({
+				...currentVp,
+				vx: panRef.current.startTx + dx,
+				vy: panRef.current.startTy + dy,
+			});
+		},
+		[setVp]
+	);
 
 	/**
 	 * 结束平移操作
@@ -143,9 +136,12 @@ export const DragSpace = ({ children, onDragEnd }: DragSpaceProps) => {
 	 * 将拖拽的位移从屏幕坐标转换为世界坐标并更新节点位置
 	 * @param e 拖拽结束事件对象
 	 */
-	const handleDragEnd = useCallback((e: DragEndEvent) => {
-		onDragEnd(e);
-	}, [onDragEnd]);
+	const handleDragEnd = useCallback(
+		(e: DragEndEvent) => {
+			onDragEnd(e);
+		},
+		[onDragEnd]
+	);
 	return (
 		<div
 			ref={containerRef}
@@ -155,7 +151,7 @@ export const DragSpace = ({ children, onDragEnd }: DragSpaceProps) => {
 			onMouseUp={endPan}
 			onMouseLeave={endPan}
 			className={cn(
-				"h-[520px] border border-black/15 rounded-[14px] relative overflow-hidden select-none",
+				"h-full w-full border border-black/15 relative overflow-hidden select-none",
 				spaceDown ? "cursor-grab" : "cursor-default"
 			)}
 			style={{

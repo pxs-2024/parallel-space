@@ -1,63 +1,44 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { useState } from "react";
-import { Position } from "./types";
-import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
+import { useDraggable } from "@dnd-kit/core";
+import { useState } from "react";
+import { Card } from "../ui/card";
+import { Position } from "./types";
+import { AssetsOrContainerCard } from "../assets/assets-or-container-card";
 
 type DraggableCardProps = {
 	position: Position;
-	viewPortScale: number;
+	viewportScale: number;
 	children?: React.ReactNode;
 };
 
-const DraggableCard = ({ position, viewPortScale, children }: DraggableCardProps) => {
+const DraggableCard = ({ position, viewportScale, children }: DraggableCardProps) => {
 	const { setNodeRef, listeners, attributes, transform } = useDraggable({
 		id: position.id,
 	});
-	const offsetX = transform ? transform.x / viewPortScale : 0;
-	const offsetY = transform ? transform.y / viewPortScale : 0;
-
-	const [isGrabbing, setIsGrabbing] = useState(false);
-
-	const handleMouseUp = () => {
-		setIsGrabbing(false);
-	};
-	const handleMouseDown = () => {
-		setIsGrabbing(true);
-	};
+	const tx = transform ? transform.x / viewportScale : 0;
+	const ty = transform ? transform.y / viewportScale : 0;
 
 	return (
 		<div
 			className={cn(
 				"absolute",
-				"rounded-[14px]",
 				"bg-white/90",
 				"will-change-transform",
-				"transition-[box-shadow,transform] duration-[250ms] ease-in-out",
-				isGrabbing ? "cursor-grabbing z-[1000] scale-[1.06] transition-none" : "cursor-grab z-0"
 			)}
 			ref={setNodeRef}
 			{...listeners}
 			{...attributes}
-			onMouseDown={handleMouseDown}
-			onMouseUp={handleMouseUp}
-			onMouseLeave={handleMouseUp}
 			style={{
 				left: position.x,
 				top: position.y,
-				boxShadow: isGrabbing
-					? "-1px 0 15px 0 rgba(34, 33, 81, 0.01),0px 15px 15px 0 rgba(34, 33, 81, 0.25)"
-					: "none",
-				transform:
-					isGrabbing && transform ? `translate3d(${offsetX}px, ${offsetY}px, 0)` : undefined,
+				transform: transform ? `translate3d(${tx}px, ${ty}px, 0)` : undefined,
 			}}
 		>
-			<Card className="w-[150px] p-[12px]">
+			<AssetsOrContainerCard icon={<></>} name={"物体名称"}>
 				{children}
-				{"物体名称"}
-			</Card>
+			</AssetsOrContainerCard>
 		</div>
 	);
 };
