@@ -1,30 +1,38 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useCallback } from "react";
-import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { DraggableCard } from "./draggable-card";
-import { useListenSpace } from "./hooks/use-listen-space";
+import { cn } from "@/lib/utils";
+import { Active, DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ClientOnly } from "./client-only";
+import { useListenSpace } from "./hooks/use-listen-space";
 import { Viewport } from "./types";
 import { clamp } from "./utils/clamp";
-import { cn } from "@/lib/utils";
 
 type DragSpaceProps = {
 	children: React.ReactNode;
 	onDragEnd: (e: DragEndEvent) => void;
 	viewport: Viewport;
 	onViewportChange: (vp: Viewport) => void;
+	renderDragOverlay?: (active: Active) => React.ReactNode;
 };
 
-export const DragSpace = ({
+const MainContainer = ({
 	children,
 	onDragEnd,
 	viewport: vp,
 	onViewportChange: setVp,
+	renderDragOverlay,
 }: DragSpaceProps) => {
 	const containerRef = useRef<HTMLDivElement | null>(null);
+	const [activeItem, setActiveItem] = useState<Active | null>(null);
 
-	const sensors = useSensors(useSensor(PointerSensor));
+	const sensors = useSensors(
+		useSensor(PointerSensor, {
+			activationConstraint: {
+				distance: 5, // 移动 5px 后才开始拖拽，允许点击事件正常触发
+			},
+		})
+	);
 	
 	const { spaceDown } = useListenSpace();
 	const panRef = useRef<{
@@ -58,7 +66,6 @@ export const DragSpace = ({
 
 			// 缩放强度系数
 			const zoomIntensity = 0.0015;
-			console.log(e.deltaY);
 			// 计算新的缩放比例，使用指数函数实现平滑缩放
 			const nextScale = clamp(vp.scale * Math.exp(-e.deltaY * zoomIntensity), 0.25, 4);
 
@@ -131,6 +138,10 @@ export const DragSpace = ({
 
 	/* ---------- 拖拽结束：保存到世界坐标系 ---------- */
 
+	const handleDragStart = useCallback((e: DragStartEvent) => {
+		setActiveItem(e.active);
+	}, []);
+
 	/**
 	 * 拖拽结束事件处理
 	 * 将拖拽的位移从屏幕坐标转换为世界坐标并更新节点位置
@@ -138,10 +149,15 @@ export const DragSpace = ({
 	 */
 	const handleDragEnd = useCallback(
 		(e: DragEndEvent) => {
+			setActiveItem(null);
 			onDragEnd(e);
 		},
 		[onDragEnd]
 	);
+
+	const handleDragCancel = useCallback(() => {
+		setActiveItem(null);
+	}, []);
 	return (
 		<div
 			ref={containerRef}
@@ -162,7 +178,12 @@ export const DragSpace = ({
 			}}
 		>
 			<ClientOnly>
-				<DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+				<DndContext 
+					sensors={sensors} 
+					onDragStart={handleDragStart}
+					onDragEnd={handleDragEnd}
+					onDragCancel={handleDragCancel}
+				>
 					<div
 						className="absolute left-0 top-0 origin-top-left w-0 h-0"
 						style={{
@@ -172,8 +193,13 @@ export const DragSpace = ({
 						<div className="absolute left-0 top-0 w-2.5 h-2.5 rounded-[5px] bg-background translate-x-[-5px] translate-y-[-5px]" />
 						{children}
 					</div>
+					<DragOverlay dropAnimation={null}>
+						{activeItem && renderDragOverlay ? renderDragOverlay(activeItem) : null}
+					</DragOverlay>
 				</DndContext>
 			</ClientOnly>
 		</div>
 	);
 };
+
+export { MainContainer };

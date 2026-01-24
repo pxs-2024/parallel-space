@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 type CardCompactProps = {
 	title: string;
 	description: string;
-	content: React.ReactNode;
+	content?: React.ReactNode;
 	className: string;
 	footer?: React.ReactNode;
 };
@@ -15,7 +15,7 @@ const CardCompact = ({ title, description, content, className, footer }: CardCom
 				<CardTitle>{title}</CardTitle>
 				<CardDescription>{description}</CardDescription>
 			</CardHeader>
-			<CardContent>{content}</CardContent>
+			{content && <CardContent>{content}</CardContent>}
 			{footer && <CardFooter>{footer}</CardFooter>}
 		</Card>
 	);

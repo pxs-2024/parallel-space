@@ -8,4 +8,5 @@ export const accountProfilePath = () => "/account/profile";
 export const accountPasswordPath = () => "/account/password";
 export const passwordForgotPath = () => "/password-forget";
 
-export const spacePath = () => "/space";
+export const spacesPath = () => "/spaces";
+export const spacePath = (spaceId: string) => `/spaces/${spaceId}`;

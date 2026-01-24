@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export function ClientOnly({ children }: { children: React.ReactNode }) {
+const ClientOnly = ({ children }: { children: React.ReactNode }) => {
 	const [mounted, setMounted] = useState(false);
 
 	useEffect(() => {
@@ -14,3 +14,5 @@ export function ClientOnly({ children }: { children: React.ReactNode }) {
 	if (!mounted) return null; // 或 Skeleton
 	return <>{children}</>;
 }
+
+export { ClientOnly };

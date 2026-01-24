@@ -9,3 +9,17 @@ export type Viewport = {
 	vy:number,
 	scale:number,
 }
+
+export type Space = {
+	id: string;
+	name: string;
+	description: string;
+}
+
+
+export type ContainerAsset = {
+	id: string;
+	name: string;
+	description: string;
+	orderIndex: number;
+};
