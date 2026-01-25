@@ -1,24 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { FolderPlus, Package } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { Package } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CreateItemDialog } from "./create-item-dialog";
 
-export type SpaceMenuContext =
-	| { type: "root" }
-	| { type: "grid"; row: number; col: number }
-	| { type: "container"; containerId: string };
+export type SpaceMenuContext = { type: "root" };
 
 type SpaceContextMenuProps = {
 	open: boolean;
 	x: number;
 	y: number;
 	context: SpaceMenuContext | null;
-	spaceId: string;
-	layoutMode: "sort" | "grid";
 	onClose: () => void;
-	onCreated?: () => void;
+	onCreateAsset: () => void;
 };
 
 export function SpaceContextMenu({
@@ -26,15 +20,10 @@ export function SpaceContextMenu({
 	x,
 	y,
 	context,
-	spaceId,
-	layoutMode,
 	onClose,
-	onCreated,
+	onCreateAsset,
 }: SpaceContextMenuProps) {
 	const menuRef = useRef<HTMLDivElement>(null);
-	const [dialogOpen, setDialogOpen] = useState(false);
-	const [dialogType, setDialogType] = useState<"container" | "asset">("container");
-	const [dialogContext, setDialogContext] = useState<SpaceMenuContext | null>(null);
 
 	useEffect(() => {
 		if (!open) return;
@@ -53,25 +42,9 @@ export function SpaceContextMenu({
 		};
 	}, [open, onClose]);
 
-	const handleNewContainer = () => {
-		if (!context) return;
-		setDialogContext(context);
-		setDialogType("container");
-		setDialogOpen(true);
-		onClose();
-	};
-
 	const handleNewAsset = () => {
-		if (!context) return;
-		setDialogContext(context);
-		setDialogType("asset");
-		setDialogOpen(true);
+		onCreateAsset();
 		onClose();
-	};
-
-	const handleDialogOpenChange = (next: boolean) => {
-		setDialogOpen(next);
-		if (!next) setDialogContext(null);
 	};
 
 	const itemClass =
@@ -99,15 +72,6 @@ export function SpaceContextMenu({
 							type="button"
 							className={itemClass}
 							role="menuitem"
-							onClick={handleNewContainer}
-						>
-							<FolderPlus className="text-muted-foreground" />
-							新建容器
-						</button>
-						<button
-							type="button"
-							className={itemClass}
-							role="menuitem"
 							onClick={handleNewAsset}
 						>
 							<Package className="text-muted-foreground" />
@@ -116,15 +80,6 @@ export function SpaceContextMenu({
 					</div>
 				</>
 			)}
-			<CreateItemDialog
-				open={dialogOpen}
-				onOpenChange={handleDialogOpenChange}
-				type={dialogType}
-				context={dialogContext}
-				spaceId={spaceId}
-				layoutMode={layoutMode}
-				onCreated={onCreated}
-			/>
 		</>
 	);
 }

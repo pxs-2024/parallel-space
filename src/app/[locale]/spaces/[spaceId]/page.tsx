@@ -14,12 +14,7 @@ const SpacePage = async ({ params }: SpacePageProps) => {
 		notFound();
 	}
 	return (
-		<Space
-			key={`${space.id}-${space.layoutMode}`}
-			spaceId={space.id}
-			initialItems={space.items}
-			initialLayoutMode={space.layoutMode}
-		/>
+		<Space spaceId={spaceId} initialAssets={space?.assets ?? []} />
 	);
 };
 

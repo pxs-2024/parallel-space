@@ -36,52 +36,36 @@ model Session {
   @@index([createdAt])
 }
 
-enum SpaceItemType {
-  asset
-  container
-}
-
-enum SpaceLayoutMode {
-  sort
-  grid
-}
-
 model Space {
-  id          String          @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   description String
-  layoutMode  SpaceLayoutMode @default(sort)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   user   User   @relation(fields: [userId], references: [id])
   userId String
 
-  spaceItems SpaceItem[]
+  assets Asset[]
 
   @@index([userId])
   @@index([createdAt])
 }
 
-model SpaceItem {
-  id          String        @id @default(cuid())
+model Asset {
+  id          String   @id @default(cuid())
   name        String
   description String
-  type        SpaceItemType
-  orderIndex  Int           @default(0)
-  gridRow     Int?
-  gridCol     Int?
-  spaceId     String
-  containerId String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  isDeleted   Boolean       @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
 
-  space     Space      @relation(fields: [spaceId], references: [id], onDelete: Cascade)
-  container SpaceItem? @relation("ContainerAssets", fields: [containerId], references: [id], onDelete: Cascade)
-  assets    SpaceItem[] @relation("ContainerAssets")
+  space   Space  @relation(fields: [spaceId], references: [id])
+  spaceId String
+
+  x          Int @default(0)
+  y          Int @default(0)
+  orderIndex Int @default(0)
 
   @@index([spaceId, isDeleted])
-  @@index([containerId, orderIndex, isDeleted])
-  @@index([spaceId, type, isDeleted])
 }

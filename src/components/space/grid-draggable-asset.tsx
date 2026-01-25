@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { AssetsOrContainerCard } from "@/components/assets/assets-or-container-card";
+import { AssetCard } from "@/components/assets/assets-or-container-card";
 import { useDraggable } from "@dnd-kit/core";
 
 type Asset = {
@@ -25,7 +25,7 @@ export function GridDraggableAsset({ asset }: { asset: Asset }) {
 			data-context-menu-handled
 			className={cn("w-full h-full min-w-0 min-h-0", isDragging && "opacity-40")}
 		>
-			<AssetsOrContainerCard
+			<AssetCard
 				icon={<></>}
 				name={asset.name}
 				desc={asset.description}
