@@ -4,11 +4,11 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ContainerAsset } from "./types";
 
-const SortableWrap = ({ 
-	asset, 
+const SortableWrap = ({
+	asset,
 	containerId,
-}: { 
-	asset: ContainerAsset;	 
+}: {
+	asset: ContainerAsset;
 	containerId: string;
 }) => {
 	const { 
