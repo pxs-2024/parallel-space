@@ -151,6 +151,7 @@ const MainContainer = ({
 		return (
 		<div
 			ref={containerRef}
+			data-main-container
 			onWheel={onWheel}
 			onMouseDown={onMouseDown}
 			onMouseMove={onMouseMove}

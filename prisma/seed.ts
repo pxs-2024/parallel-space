@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import { hash } from "@node-rs/argon2";
-import {PrismaClient} from "@/generated/prisma/client";
+import { PrismaClient, AssetKind, AssetState } from "@/generated/prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -26,22 +26,28 @@ const assets = [
 	{
 		name: "物体1",
 		description: "物体1描述",
+		kind: AssetKind.STATIC,
+		state: AssetState.ACTIVE,
 		x: 300,
 		y: 300,
 	},
 	{
 		name: "物体2",
 		description: "物体2描述",
+		kind: AssetKind.CONSUMABLE,
+		state: AssetState.ACTIVE,
+		quantity: 10,
+		unit: "个",
+		reorderPoint: 5,
 		x: 500,
 		y: 500,
 	},
 ];
 
-
-
 const seed = async () => {
 	const t0 = performance.now();
 	console.log("DB Seed: Started ...");
+	await prisma.action.deleteMany();
 	await prisma.asset.deleteMany();
 	await prisma.space.deleteMany();
 	await prisma.session.deleteMany();
@@ -63,6 +69,7 @@ const seed = async () => {
 		data: assets.map((asset) => ({
 			...asset,
 			spaceId: space[0].id,
+			isDeleted: false,
 		})),
 	});
 

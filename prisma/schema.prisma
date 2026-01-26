@@ -47,25 +47,105 @@ model Space {
   userId String
 
   assets Asset[]
+  actions Action[]
 
   @@index([userId])
   @@index([createdAt])
 }
 
+enum AssetKind {
+  STATIC
+  CONSUMABLE
+  TEMPORAL
+  VIRTUAL
+}
+
+enum AssetState {
+  ACTIVE
+  ARCHIVED
+  DISCARDED
+}
+
 model Asset {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
+
+  spaceId     String
+  space       Space  @relation(fields: [spaceId], references: [id])
+
   name        String
-  description String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  isDeleted   Boolean  @default(false)
+  description String?
+  kind        AssetKind  @default(STATIC)
+  state       AssetState @default(ACTIVE)
+  isDeleted   Boolean    @default(false)
 
-  space   Space  @relation(fields: [spaceId], references: [id])
-  spaceId String
+  x           Float?
+  y           Float?
 
-  x          Int @default(0)
-  y          Int @default(0)
-  orderIndex Int @default(0)
+  // 消耗型
+  quantity      Int? // 物品数量
+  unit          String? // 单位
+  reorderPoint  Int? // 数量减到时触发提醒
 
+  // 时间型
+  dueAt         DateTime? // 过期时间 （过期性物品）
+  intervalDays  Int?  // 物品可用周期 （时间性消耗物品）
+  lastDoneAt    DateTime? // 上次改动时间
+  nextDueAt     DateTime? // 下次到期时间
+
+  // 虚拟型
+  refUrl        String?
+  expiresAt     DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  actions Action[]
+
+  @@index([spaceId])
   @@index([spaceId, isDeleted])
+  @@index([kind, nextDueAt])
+  @@index([spaceId, kind, nextDueAt])
+}
+
+enum ActionType {
+  AUTO_CONSUME
+  RESTOCK
+  REMIND
+}
+
+enum ActionStatus {
+  OPEN
+  DONE
+  PARTIAL
+  SKIPPED
+  CANCELED
+}
+
+model Action {
+  id        String @id @default(cuid())
+
+  spaceId   String
+  space     Space  @relation(fields: [spaceId], references: [id])
+
+  assetId   String?
+  asset     Asset? @relation(fields: [assetId], references: [id])
+
+  type      ActionType
+  status    ActionStatus @default(OPEN)
+
+  dueAt     DateTime?
+  key       String?
+
+  requestedAmount Int?
+  appliedAmount   Int?
+
+  payload   Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([spaceId, status, dueAt])
+  @@index([assetId, status, dueAt])
+  @@index([type, status, dueAt])
+  @@unique([key])
 }

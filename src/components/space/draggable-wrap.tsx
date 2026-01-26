@@ -7,9 +7,10 @@ type DraggableCardProps = {
 	position: Position;
 	viewportScale: number;
 	children?: React.ReactNode;
+	onContextMenu?: (e: React.MouseEvent) => void;
 };
 
-const DraggableWrap = ({ position, viewportScale, children }: DraggableCardProps) => {
+const DraggableWrap = ({ position, viewportScale, children, onContextMenu }: DraggableCardProps) => {
 	const { setNodeRef, listeners, attributes, transform } = useDraggable({
 		id: position.id,
 		data: {
@@ -29,6 +30,8 @@ const DraggableWrap = ({ position, viewportScale, children }: DraggableCardProps
 			ref={setNodeRef}
 			{...listeners}
 			{...attributes}
+			data-context-menu-handled
+			onContextMenu={onContextMenu}
 			style={{
 				left: position.x,
 				top: position.y,

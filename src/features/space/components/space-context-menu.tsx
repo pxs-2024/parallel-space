@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Package } from "lucide-react";
+import { Package, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type SpaceMenuContext = { type: "root" };
+export type SpaceMenuContext = 
+	| { type: "root" }
+	| { type: "asset"; assetId: string };
 
 type SpaceContextMenuProps = {
 	open: boolean;
@@ -13,6 +15,7 @@ type SpaceContextMenuProps = {
 	context: SpaceMenuContext | null;
 	onClose: () => void;
 	onCreateAsset: () => void;
+	onDeleteAsset?: (assetId: string) => void;
 };
 
 export function SpaceContextMenu({
@@ -22,6 +25,7 @@ export function SpaceContextMenu({
 	context,
 	onClose,
 	onCreateAsset,
+	onDeleteAsset,
 }: SpaceContextMenuProps) {
 	const menuRef = useRef<HTMLDivElement>(null);
 
@@ -47,8 +51,18 @@ export function SpaceContextMenu({
 		onClose();
 	};
 
+	const handleDeleteAsset = () => {
+		if (context?.type === "asset" && onDeleteAsset) {
+			onDeleteAsset(context.assetId);
+			onClose();
+		}
+	};
+
 	const itemClass =
 		"flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground [&_svg]:shrink-0 [&_svg]:size-4";
+	
+	const destructiveItemClass =
+		"flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:shrink-0 [&_svg]:size-4";
 
 	return (
 		<>
@@ -68,15 +82,27 @@ export function SpaceContextMenu({
 						style={{ position: "fixed", left: x, top: y }}
 						role="menu"
 					>
-						<button
-							type="button"
-							className={itemClass}
-							role="menuitem"
-							onClick={handleNewAsset}
-						>
-							<Package className="text-muted-foreground" />
-							新建物品
-						</button>
+						{context.type === "root" ? (
+							<button
+								type="button"
+								className={itemClass}
+								role="menuitem"
+								onClick={handleNewAsset}
+							>
+								<Package className="text-muted-foreground" />
+								新建物品
+							</button>
+						) : (
+							<button
+								type="button"
+								className={destructiveItemClass}
+								role="menuitem"
+								onClick={handleDeleteAsset}
+							>
+								<Trash2 />
+								删除物品
+							</button>
+						)}
 					</div>
 				</>
 			)}
