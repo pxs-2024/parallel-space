@@ -5,7 +5,7 @@ import { DragEndEvent } from "@dnd-kit/core";
 import { useState, useCallback, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Viewport } from "@/components/space/types";
-import { AssetCard } from "@/components/assets/assets-or-container-card";
+import { AssetCard } from "@/components/assets/assets-card";
 import { Prisma } from "@/generated/prisma/client";
 import { updateAssetPosition } from "@/features/space/actions/update-asset-position";
 import { deleteAsset } from "@/features/space/actions/delete-asset";
@@ -15,12 +15,23 @@ import { useEffect } from "react";
 
 type QueryAsset = Prisma.AssetGetPayload<{
 	select: {
-		id: true,
-		name: true,
-		description: true,
-		x: true,
-		y: true,
-	}
+		id: true;
+		name: true;
+		description: true;
+		x: true;
+		y: true;
+		kind: true;
+		state: true;
+		quantity: true;
+		unit: true;
+		reorderPoint: true;
+		dueAt: true;
+		intervalDays: true;
+		lastDoneAt: true;
+		nextDueAt: true;
+		refUrl: true;
+		expiresAt: true;
+	};
 }>;
 
 type SpaceProps = {
@@ -58,8 +69,8 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 		// 普通拖拽：更新位置
 		const activeAsset = assets.find((a) => a.id === activeId);
 		if (activeAsset) {
-			const newX = activeAsset.x + delta.x / viewport.scale;
-			const newY = activeAsset.y + delta.y / viewport.scale;
+			const newX = (activeAsset.x ?? 0) + delta.x / viewport.scale;
+			const newY = (activeAsset.y ?? 0) + delta.y / viewport.scale;
 			
 			// 更新本地 state
 			setAssets((prev) => (prev.map((asset) => {
@@ -176,11 +187,7 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 						viewportScale={viewport.scale}
 						onContextMenu={(e) => handleAssetContextMenu(asset.id, e)}
 					>
-						<AssetCard
-							icon={<></>}
-							name={asset.name}
-							desc={asset.description}
-						/>
+						<AssetCard asset={asset} />
 					</DraggableWrap>
 				))}
 			</MainContainer>

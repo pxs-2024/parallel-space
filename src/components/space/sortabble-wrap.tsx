@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { AssetCard } from "../assets/assets-or-container-card";
+import { AssetCard } from "../assets/assets-card";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ContainerAsset } from "./types";

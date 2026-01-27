@@ -1,17 +1,31 @@
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "../ui/card";
 import { useState } from "react";
-
+import { Prisma } from "@/generated/prisma/client";
+import { Card as CardInner } from "./card";
 type AssetCardProps = {
-	icon: React.ReactNode;
-	name: string;
-	desc: string;
+	asset: Prisma.AssetGetPayload<{
+		select: {
+			id: true,
+			name: true,
+			description: true,
+			kind: true,
+			state: true,
+			quantity: true,
+			unit: true,
+			reorderPoint: true,
+			dueAt: true,
+			intervalDays: true,
+			lastDoneAt: true,
+			nextDueAt: true,
+			refUrl: true,
+			expiresAt: true,
+		}
+	}>;
 };
 
 const AssetCard = ({
-	icon,
-	name,
-	desc,
+	asset,
 }: AssetCardProps) => {
 	const [isGrabbing, setIsGrabbing] = useState(false);
 
@@ -37,16 +51,7 @@ const AssetCard = ({
 			)}
 		>
 			<CardContent className="flex h-full flex-col items-center justify-center gap-3">
-				{/* Icon */}
-				<div className="flex h-14 w-14 items-center justify-center drop-shadow-md">
-					{icon}
-				</div>
-
-				{/* Name */}
-				<div className="text-sm font-medium text-slate-700">
-					{name}
-					<p className="text-xs text-slate-500">{desc}</p>
-				</div>
+				<CardInner asset={asset} />
 			</CardContent>
 		</Card>
 	);
