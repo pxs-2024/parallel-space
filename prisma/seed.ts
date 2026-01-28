@@ -39,6 +39,8 @@ const assets = [
 		quantity: 10,
 		unit: "个",
 		reorderPoint: 5,
+		consumeIntervalDays: 7,
+		consumeAmountPerTime: 2,
 		x: 500,
 		y: 500,
 	},

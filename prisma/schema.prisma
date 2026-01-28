@@ -85,6 +85,8 @@ model Asset {
   quantity      Int? // 物品数量
   unit          String? // 单位
   reorderPoint  Int? // 数量减到时触发提醒
+  consumeIntervalDays Int? // 消耗周期：每隔多少天消耗一次
+  consumeAmountPerTime Int? // 每次消耗数量
 
   // 时间型
   dueAt         DateTime? // 过期时间 （过期性物品）
@@ -135,6 +137,7 @@ model Action {
 
   dueAt     DateTime?
   key       String?
+  snoozeUntil DateTime? // 用户选择“忽略”时的截止时间，此时间前不再提示
 
   requestedAmount Int?
   appliedAmount   Int?

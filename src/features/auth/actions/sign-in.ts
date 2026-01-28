@@ -2,7 +2,9 @@
 
 import { verify } from "@node-rs/argon2";
 import { redirect } from "next/navigation";
+import { getLocale } from "next-intl/server";
 import { z } from "zod";
+import { decisionsPath } from "@/paths";
 import {
 	ActionState,
 	fromErrorToActionState,
@@ -35,6 +37,6 @@ export const signIn = async (_actionState: ActionState, formData: FormData) => {
 	} catch (error) {
 		return fromErrorToActionState(error, formData);
 	}
-	// todo 成功后跳转用户首页
-	redirect("/");
+	const locale = await getLocale();
+	redirect(`/${locale}${decisionsPath()}`);
 };

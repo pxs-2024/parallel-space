@@ -35,6 +35,14 @@ const createAssetSchema = z.object({
 		.union([z.coerce.number().int().min(0), z.literal("")])
 		.optional()
 		.transform((val) => (val === "" ? undefined : val)),
+	consumeIntervalDays: z
+		.union([z.coerce.number().int().min(1), z.literal("")])
+		.optional()
+		.transform((val) => (val === "" ? undefined : val)),
+	consumeAmountPerTime: z
+		.union([z.coerce.number().int().min(0), z.literal("")])
+		.optional()
+		.transform((val) => (val === "" ? undefined : val)),
 	// 时间型
 	dueAt: z
 		.string()
@@ -103,6 +111,8 @@ export async function createAsset(
 			if (data.quantity !== undefined) assetData.quantity = data.quantity;
 			if (data.unit) assetData.unit = data.unit;
 			if (data.reorderPoint !== undefined) assetData.reorderPoint = data.reorderPoint;
+			if (data.consumeIntervalDays !== undefined) assetData.consumeIntervalDays = data.consumeIntervalDays;
+			if (data.consumeAmountPerTime !== undefined) assetData.consumeAmountPerTime = data.consumeAmountPerTime;
 		}
 
 		// 时间型字段

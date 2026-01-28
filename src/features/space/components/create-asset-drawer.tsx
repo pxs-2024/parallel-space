@@ -293,6 +293,30 @@ const CreateAssetDialog = ({
 											/>
 											<FieldError actionState={actionState} name="reorderPoint" />
 										</div>
+										<div className="space-y-2">
+											<Label htmlFor="consumeIntervalDays">消耗周期（天）</Label>
+											<Input
+												id="consumeIntervalDays"
+												name="consumeIntervalDays"
+												type="number"
+												min="1"
+												placeholder="每隔多少天消耗一次"
+												defaultValue={actionState.payload?.get("consumeIntervalDays") as string}
+											/>
+											<FieldError actionState={actionState} name="consumeIntervalDays" />
+										</div>
+										<div className="space-y-2">
+											<Label htmlFor="consumeAmountPerTime">每次消耗数量</Label>
+											<Input
+												id="consumeAmountPerTime"
+												name="consumeAmountPerTime"
+												type="number"
+												min="0"
+												placeholder="每次消耗多少个"
+												defaultValue={actionState.payload?.get("consumeAmountPerTime") as string}
+											/>
+											<FieldError actionState={actionState} name="consumeAmountPerTime" />
+										</div>
 									</>
 								)}
 
