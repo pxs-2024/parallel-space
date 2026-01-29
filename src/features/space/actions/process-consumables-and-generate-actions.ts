@@ -25,6 +25,7 @@ export async function processConsumablesAndGenerateActions(): Promise<void> {
       id: true,
       spaceId: true,
       quantity: true,
+      state: true,
       lastDoneAt: true,
       createdAt: true,
       consumeIntervalDays: true,
@@ -51,53 +52,60 @@ export async function processConsumablesAndGenerateActions(): Promise<void> {
     if (totalConsume <= 0) continue;
 
     const newQty = Math.max(0, (a.quantity ?? 0) - totalConsume);
+    // 精确计算上次消耗时间：刚好够上一次消耗的时刻
+    const lastConsumeMs = start + periods * intervalDays * MS_PER_DAY;
+    const lastDoneAt = new Date(lastConsumeMs);
 
-    await prisma.$transaction([
-      prisma.asset.update({
-        where: { id: a.id },
-        data: { quantity: newQty, lastDoneAt: now },
-      }),
-      prisma.action.create({
+    const stateUpdates: { state?: (typeof a)["state"] } = {};
+    if (newQty === 0 && a.state !== "PENDING_DISCARD") {
+      stateUpdates.state = "PENDING_DISCARD";
+    } else if (
+      a.reorderPoint != null &&
+      newQty <= a.reorderPoint &&
+      a.state !== "PENDING_DISCARD"
+    ) {
+      stateUpdates.state = "PENDING_RESTOCK";
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.action.create({
         data: {
           spaceId: a.spaceId,
           assetId: a.id,
           type: "AUTO_CONSUME",
           status: "DONE",
-          requestedAmount: totalConsume,
-          appliedAmount: totalConsume,
         },
-      }),
-    ]);
+      });
+
+      const updateData: Parameters<typeof tx.asset.update>[0]["data"] = {
+        quantity: newQty,
+        lastDoneAt,
+        ...stateUpdates,
+      };
+
+      if (newQty === 0 && a.state !== "PENDING_DISCARD") {
+        const discardAction = await tx.action.create({
+          data: {
+            spaceId: a.spaceId,
+            assetId: a.id,
+            type: "DISCARD",
+            status: "OPEN",
+          },
+        });
+        (updateData as { openPromptActionId: string }).openPromptActionId =
+          discardAction.id;
+      }
+
+      await tx.asset.update({
+        where: { id: a.id },
+        data: updateData,
+      });
+    });
   }
-
-  // 生成需用户确认的 RESTOCK / REMIND（排除已被 snooze 的）
-  const snoozed = await prisma.action.findMany({
-    where: {
-      space: { userId: auth.user.id },
-      status: "SKIPPED",
-      snoozeUntil: { gt: now },
-    },
-    select: { assetId: true, type: true },
-  });
-  const snoozedSet = new Set(
-    snoozed.filter((x) => x.assetId).map((x) => `${x.assetId!}:${x.type}`)
-  );
-
-  const openKeys = await prisma.action.findMany({
-    where: {
-      space: { userId: auth.user.id },
-      status: "OPEN",
-      assetId: { not: null },
-    },
-    select: { assetId: true, type: true },
-  });
-  const openSet = new Set(
-    openKeys.filter((x) => x.assetId).map((x) => `${x.assetId!}:${x.type}`)
-  );
 
   const soon = new Date(now.getTime() + 7 * MS_PER_DAY);
 
-  // RESTOCK: 消耗型且数量 <= 补货点
+  // RESTOCK: 消耗型且数量 <= 补货点；排除 snooze 期内、已有未处理提示的 asset
   const needRestock = await prisma.asset.findMany({
     where: {
       space: { userId: auth.user.id },
@@ -105,17 +113,27 @@ export async function processConsumablesAndGenerateActions(): Promise<void> {
       kind: "CONSUMABLE",
       quantity: { not: null },
       reorderPoint: { not: null },
+      openPromptActionId: null,
+      OR: [
+        { snoozeUntil: null },
+        { snoozeUntil: { lte: now } },
+      ],
     },
-    select: { id: true, spaceId: true, name: true, quantity: true, unit: true, reorderPoint: true },
+    select: {
+      id: true,
+      spaceId: true,
+      name: true,
+      quantity: true,
+      unit: true,
+      reorderPoint: true,
+    },
   });
 
   for (const r of needRestock) {
     const q = r.quantity!;
     const rp = r.reorderPoint!;
     if (q > rp) continue;
-    const key = `${r.id}:RESTOCK`;
-    if (openSet.has(key) || snoozedSet.has(key)) continue;
-    await prisma.action.create({
+    const action = await prisma.action.create({
       data: {
         spaceId: r.spaceId,
         assetId: r.id,
@@ -123,23 +141,32 @@ export async function processConsumablesAndGenerateActions(): Promise<void> {
         status: "OPEN",
       },
     });
-    openSet.add(key);
+    await prisma.asset.update({
+      where: { id: r.id },
+      data: {
+        openPromptActionId: action.id,
+        state: "PENDING_RESTOCK",
+      },
+    });
   }
 
-  // REMIND: 时间型/虚拟型到期或即将到期
+  // REMIND: 时间型/虚拟型到期或即将到期；排除 snooze 期内、已有未处理提示的 asset
   const temporals = await prisma.asset.findMany({
     where: {
       space: { userId: auth.user.id },
       isDeleted: false,
       kind: "TEMPORAL",
       nextDueAt: { not: null, lte: soon },
+      openPromptActionId: null,
+      OR: [
+        { snoozeUntil: null },
+        { snoozeUntil: { lte: now } },
+      ],
     },
     select: { id: true, spaceId: true, nextDueAt: true },
   });
   for (const t of temporals) {
-    const key = `${t.id}:REMIND`;
-    if (openSet.has(key) || snoozedSet.has(key)) continue;
-    await prisma.action.create({
+    const action = await prisma.action.create({
       data: {
         spaceId: t.spaceId,
         assetId: t.id,
@@ -148,7 +175,10 @@ export async function processConsumablesAndGenerateActions(): Promise<void> {
         dueAt: t.nextDueAt!,
       },
     });
-    openSet.add(key);
+    await prisma.asset.update({
+      where: { id: t.id },
+      data: { openPromptActionId: action.id },
+    });
   }
 
   const virtuals = await prisma.asset.findMany({
@@ -157,13 +187,16 @@ export async function processConsumablesAndGenerateActions(): Promise<void> {
       isDeleted: false,
       kind: "VIRTUAL",
       expiresAt: { not: null, lte: soon },
+      openPromptActionId: null,
+      OR: [
+        { snoozeUntil: null },
+        { snoozeUntil: { lte: now } },
+      ],
     },
     select: { id: true, spaceId: true, expiresAt: true },
   });
   for (const v of virtuals) {
-    const key = `${v.id}:REMIND`;
-    if (openSet.has(key) || snoozedSet.has(key)) continue;
-    await prisma.action.create({
+    const action = await prisma.action.create({
       data: {
         spaceId: v.spaceId,
         assetId: v.id,
@@ -172,6 +205,9 @@ export async function processConsumablesAndGenerateActions(): Promise<void> {
         dueAt: v.expiresAt!,
       },
     });
-    openSet.add(key);
+    await prisma.asset.update({
+      where: { id: v.id },
+      data: { openPromptActionId: action.id },
+    });
   }
 }

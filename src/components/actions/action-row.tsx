@@ -4,8 +4,8 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { MoreHorizontal } from "lucide-react";
 
-export type ActionType = "AUTO_CONSUME" | "RESTOCK" | "REMIND";
-export type ActionStatus = "OPEN" | "DONE" | "PARTIAL" | "SKIPPED" | "CANCELED";
+export type ActionType = "AUTO_CONSUME" | "RESTOCK" | "REMIND" | "DISCARD";
+export type ActionStatus = "OPEN" | "DONE" | "SKIPPED" | "DISCARDED";
 
 export type ActionRowData = {
   id: string;
@@ -15,8 +15,6 @@ export type ActionRowData = {
   status: ActionStatus;
 
   dueAt?: Date | string | null;
-  requestedAmount?: number | null;
-  appliedAmount?: number | null;
 
   // UI enrichment (通常来自 join asset 或 payload 解析)
   title?: string; // 若不传，则由 type + assetName 生成
@@ -70,6 +68,8 @@ function getDefaultTitle(a: ActionRowData) {
       return `补货${asset}`;
     case "REMIND":
       return `提醒${asset}`;
+    case "DISCARD":
+      return `丢弃${asset}`;
     default:
       return `行为${asset}`;
   }
@@ -105,12 +105,10 @@ function statusLabel(s: ActionStatus) {
       return "待处理";
     case "DONE":
       return "已完成";
-    case "PARTIAL":
-      return "部分完成";
     case "SKIPPED":
       return "已跳过";
-    case "CANCELED":
-      return "已取消";
+    case "DISCARDED":
+      return "已丢弃";
     default:
       return s;
   }
@@ -121,11 +119,9 @@ function statusTone(s: ActionStatus, overdue: boolean) {
   switch (s) {
     case "DONE":
       return "gray";
-    case "PARTIAL":
-      return "blue";
     case "SKIPPED":
       return "gray";
-    case "CANCELED":
+    case "DISCARDED":
       return "gray";
     case "OPEN":
       return "gray";
@@ -182,11 +178,6 @@ export function ActionRow({
   const due = normalizeDate(data.dueAt);
   const dueHuman = due ? toHumanDue(due) : "";
 
-  const showRatio =
-    data.status === "PARTIAL" &&
-    typeof data.appliedAmount === "number" &&
-    typeof data.requestedAmount === "number";
-
   return (
     <div
       className={cn(
@@ -221,11 +212,6 @@ export function ActionRow({
       <div className="flex items-center gap-4">
         <Badge tone={tone}>
           {data.status === "OPEN" && overdue ? "已逾期" : statusLabel(data.status)}
-          {showRatio ? (
-            <span className="ml-1 text-foreground/70">
-              {data.appliedAmount}/{data.requestedAmount}
-            </span>
-          ) : null}
         </Badge>
 
         <div className="hidden items-center gap-2 text-sm text-foreground/50 sm:flex">
@@ -299,11 +285,9 @@ export function ActionListDemo() {
     {
       id: "3",
       type: "REMIND",
-      status: "PARTIAL",
+      status: "SKIPPED",
       title: "服务器检查",
       subtitle: "每 14 天执行一次 ｜ 上次运行于 8 天前 ｜ 间隔 6 天后",
-      appliedAmount: 2,
-      requestedAmount: 3,
       createdHuman: "17天前创建",
     },
     {

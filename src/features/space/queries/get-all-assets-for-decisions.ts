@@ -69,7 +69,7 @@ export const getOpenActionKeysForDecisions = async (): Promise<Set<string>> => {
 
 export type PendingConfirmAction = {
   id: string;
-  type: "RESTOCK" | "REMIND";
+  type: "RESTOCK" | "REMIND" | "DISCARD";
   spaceId: string;
   spaceName: string;
   assetId: string;
@@ -78,7 +78,7 @@ export type PendingConfirmAction = {
   dueAt: Date | null;
 };
 
-/** 当前用户待确认的 OPEN RESTOCK/REMIND（需用户选择补充或忽略） */
+/** 当前用户待确认的 OPEN RESTOCK/REMIND/DISCARD（需用户选择补充/完成或忽略） */
 export const getPendingConfirmActions = async (): Promise<
   PendingConfirmAction[]
 > => {
@@ -89,7 +89,7 @@ export const getPendingConfirmActions = async (): Promise<
     where: {
       space: { userId: auth.user.id },
       status: "OPEN",
-      type: { in: ["RESTOCK", "REMIND"] },
+      type: { in: ["RESTOCK", "REMIND", "DISCARD"] },
       assetId: { not: null },
     },
     include: {
@@ -103,7 +103,7 @@ export const getPendingConfirmActions = async (): Promise<
     .filter((a) => a.asset)
     .map((a) => ({
       id: a.id,
-      type: a.type as "RESTOCK" | "REMIND",
+      type: a.type as "RESTOCK" | "REMIND" | "DISCARD",
       spaceId: a.spaceId,
       spaceName: a.space.name,
       assetId: a.assetId!,

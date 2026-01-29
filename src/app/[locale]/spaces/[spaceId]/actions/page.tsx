@@ -26,8 +26,6 @@ const ActionsPage = async ({ params }: ActionsPageProps) => {
     type: a.type as ActionRowData["type"],
     status: a.status as ActionRowData["status"],
     dueAt: a.dueAt,
-    requestedAmount: a.requestedAmount,
-    appliedAmount: a.appliedAmount,
     assetName: a.asset?.name,
     createdHuman: formatCreatedHuman(a.createdAt),
   }));

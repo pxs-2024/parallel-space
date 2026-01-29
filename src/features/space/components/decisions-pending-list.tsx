@@ -80,12 +80,38 @@ export function DecisionsPendingList({ items }: DecisionsPendingListProps) {
                 {a.spaceName} · {a.assetName}
               </div>
               <div className="mt-1 text-sm text-muted-foreground">
-                {a.type === "RESTOCK" ? "需补货" : "需提醒"}
+                {a.type === "RESTOCK"
+                  ? "需补货"
+                  : a.type === "DISCARD"
+                    ? "待丢弃"
+                    : "需提醒"}
                 {a.dueAt && ` · ${a.dueAt.toLocaleDateString()}`}
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {a.type === "RESTOCK" ? (
+              {a.type === "DISCARD" ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={isBusy}
+                    onClick={() => handleComplete(a.id)}
+                    className="shrink-0 rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+                  >
+                    {isBusy ? "处理中…" : "确认丢弃"}
+                  </button>
+                  {SNOOZE_OPTIONS.map(({ choice, label }) => (
+                    <button
+                      key={choice}
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => handleSnooze(a.id, choice)}
+                      className="shrink-0 rounded-md border bg-background px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </>
+              ) : a.type === "RESTOCK" ? (
                 showRestockInput ? (
                   <>
                     <div className="flex items-center gap-2">
@@ -136,17 +162,18 @@ export function DecisionsPendingList({ items }: DecisionsPendingListProps) {
                   {isBusy ? "处理中…" : "补充"}
                 </button>
               )}
-              {SNOOZE_OPTIONS.map(({ choice, label }) => (
-                <button
-                  key={choice}
-                  type="button"
-                  disabled={isBusy || showRestockInput}
-                  onClick={() => handleSnooze(a.id, choice)}
-                  className="shrink-0 rounded-md border bg-background px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
-                >
-                  {label}
-                </button>
-              ))}
+              {a.type !== "DISCARD" &&
+                SNOOZE_OPTIONS.map(({ choice, label }) => (
+                  <button
+                    key={choice}
+                    type="button"
+                    disabled={isBusy || showRestockInput}
+                    onClick={() => handleSnooze(a.id, choice)}
+                    className="shrink-0 rounded-md border bg-background px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                  >
+                    {label}
+                  </button>
+                ))}
             </div>
           </li>
         );
