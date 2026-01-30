@@ -2,16 +2,28 @@
 import { MainContainer } from "@/components/space/main-container";
 import { DraggableWrap } from "@/components/space/draggable-wrap";
 import { DragEndEvent } from "@dnd-kit/core";
-import { useState, useCallback, useTransition } from "react";
+import { useState, useCallback, useTransition, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Viewport } from "@/components/space/types";
 import { AssetCard } from "@/components/assets/assets-card";
+import { AssetCardHorizontal } from "@/components/assets/asset-card-horizontal";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Prisma } from "@/generated/prisma/client";
 import { updateAssetPosition } from "@/features/space/actions/update-asset-position";
 import { deleteAsset } from "@/features/space/actions/delete-asset";
 import { SpaceContextMenu, type SpaceMenuContext } from "@/features/space/components/space-context-menu";
 import { CreateAssetDialog } from "@/features/space/components/create-asset-drawer";
-import { useEffect } from "react";
+import { LayoutGrid, List, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useQueryStates, parseAsString, parseAsStringLiteral } from "nuqs";
 
 type QueryAsset = Prisma.AssetGetPayload<{
 	select: {
@@ -31,8 +43,20 @@ type QueryAsset = Prisma.AssetGetPayload<{
 		nextDueAt: true;
 		refUrl: true;
 		expiresAt: true;
+		createdAt: true;
 	};
 }>;
+
+const LIST_SORT_FIELDS = ["name", "kind", "state", "quantity", "createdAt"] as const;
+const LIST_ORDER = ["asc", "desc"] as const;
+
+const listSearchParsers = {
+	q: parseAsString.withDefault(""),
+	kind: parseAsString.withDefault(""),
+	state: parseAsString.withDefault(""),
+	sort: parseAsStringLiteral(LIST_SORT_FIELDS).withDefault("createdAt"),
+	order: parseAsStringLiteral(LIST_ORDER).withDefault("desc"),
+};
 
 type SpaceProps = {
 	spaceId: string;
@@ -48,10 +72,85 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 		scale: 1,
 	});
 	const [assets, setAssets] = useState<QueryAsset[]>(initialAssets);
+	const [viewMode, setViewMode] = useState<"space" | "list">("list");
+	const [focusAssetId, setFocusAssetId] = useState<string | null>(null);
+	const contentWrapperRef = useRef<HTMLDivElement>(null);
+
+	const [listQuery, setListQuery] = useQueryStates(listSearchParsers, { shallow: false });
+
+	const listItems = useMemo(() => {
+		const q = listQuery.q.trim().toLowerCase();
+		let result = assets;
+		if (q) {
+			result = result.filter(
+				(a) =>
+					a.name.toLowerCase().includes(q) ||
+					(a.description != null && String(a.description).toLowerCase().includes(q))
+			);
+		}
+		if (listQuery.kind) {
+			result = result.filter((a) => a.kind === listQuery.kind);
+		}
+		if (listQuery.state) {
+			result = result.filter((a) => a.state === listQuery.state);
+		}
+		const { sort: sortField, order } = listQuery;
+		result = [...result].sort((a, b) => {
+			if (sortField === "createdAt") {
+				const aT = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+				const bT = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+				return order === "asc" ? aT - bT : bT - aT;
+			}
+			let aVal: string | number | null = (a as Record<string, string | number | null>)[sortField] ?? null;
+			let bVal: string | number | null = (b as Record<string, string | number | null>)[sortField] ?? null;
+			if (aVal == null) aVal = "";
+			if (bVal == null) bVal = "";
+			if (typeof aVal === "number" && typeof bVal === "number") {
+				return order === "asc" ? aVal - bVal : bVal - aVal;
+			}
+			const aStr = String(aVal);
+			const bStr = String(bVal);
+			const cmp = aStr.localeCompare(bStr, undefined, { numeric: true });
+			return order === "asc" ? cmp : -cmp;
+		});
+		return result;
+	}, [assets, listQuery.q, listQuery.kind, listQuery.state, listQuery.sort, listQuery.order]);
 
 	useEffect(() => {
 		setAssets(initialAssets);
-	},[initialAssets])
+	}, [initialAssets]);
+
+	// 从列表「跳转到物品」后切换到空间模式并让该物品卡片居中靠左上
+	useEffect(() => {
+		if (viewMode !== "space" || !focusAssetId) return;
+		const asset = assets.find((a) => a.id === focusAssetId);
+		if (!asset) {
+			setFocusAssetId(null);
+			return;
+		}
+		const el = contentWrapperRef.current;
+		if (!el) {
+			setFocusAssetId(null);
+			return;
+		}
+		const run = () => {
+			const rect = el.getBoundingClientRect();
+			const cardW = 160;
+			const cardH = 160;
+			const worldX = (asset.x ?? 0) + cardW / 2;
+			const worldY = (asset.y ?? 0) + cardH / 2;
+			const scale = 1;
+			// 物品卡片中心对准视口中心偏左上（约 45% 40%）
+			const targetScreenX = rect.width * 0.45;
+			const targetScreenY = rect.height * 0.4;
+			const vx = targetScreenX - worldX * scale;
+			const vy = targetScreenY - worldY * scale;
+			setViewport({ vx, vy, scale });
+			setFocusAssetId(null);
+		};
+		const t = setTimeout(run, 50);
+		return () => clearTimeout(t);
+	}, [viewMode, focusAssetId, assets]);
 
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const [createPosition, setCreatePosition] = useState<{ x: number; y: number } | null>(null);
@@ -98,6 +197,12 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 	const handleMenuClose = useCallback(() => {
 		setMenu((m) => ({ ...m, open: false, context: null }));
 	}, []);
+
+	const handleGoToAssetInSpace = useCallback((assetId: string) => {
+		setFocusAssetId(assetId);
+		setViewMode("space");
+		handleMenuClose();
+	}, [handleMenuClose]);
 
 	const handleCreateAsset = () => {
 		setDrawerOpen(true);
@@ -174,23 +279,145 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 
 	return (
 		<>
-			<MainContainer 
-				onDragEnd={onDragEnd} 
-				viewport={viewport} 
-				onViewportChange={setViewport}
-				onContextMenu={handleRootContextMenu}
-			>
-				{assets.map((asset) => (
-					<DraggableWrap
-						key={asset.id}
-						position={{ id: asset.id, x: asset.x ?? 0, y: asset.y ?? 0 }}
-						viewportScale={viewport.scale}
-						onContextMenu={(e) => handleAssetContextMenu(asset.id, e)}
+			<div className="flex h-full flex-col">
+				<div className="flex shrink-0 items-center gap-1 border-b border-black/10 px-3 py-2">
+					<Button
+						variant={viewMode === "space" ? "default" : "ghost"}
+						size="sm"
+						onClick={() => setViewMode("space")}
+						className="gap-1.5"
 					>
-						<AssetCard asset={asset} />
-					</DraggableWrap>
-				))}
-			</MainContainer>
+						<LayoutGrid className="size-4" />
+						空间
+					</Button>
+					<Button
+						variant={viewMode === "list" ? "default" : "ghost"}
+						size="sm"
+						onClick={() => setViewMode("list")}
+						className="gap-1.5"
+					>
+						<List className="size-4" />
+						列表
+					</Button>
+				</div>
+				<div ref={contentWrapperRef} className="min-h-0 flex-1 overflow-hidden">
+					{viewMode === "space" ? (
+						<MainContainer
+							className={cn(
+								"h-full transition-opacity duration-200",
+								focusAssetId && "pointer-events-none opacity-0"
+							)}
+							onDragEnd={onDragEnd}
+							viewport={viewport}
+							onViewportChange={setViewport}
+							onContextMenu={handleRootContextMenu}
+						>
+							{assets.map((asset) => (
+								<DraggableWrap
+									key={asset.id}
+									position={{ id: asset.id, x: asset.x ?? 0, y: asset.y ?? 0 }}
+									viewportScale={viewport.scale}
+									onContextMenu={(e) => handleAssetContextMenu(asset.id, e)}
+								>
+									<AssetCard asset={asset} />
+								</DraggableWrap>
+							))}
+						</MainContainer>
+					) : (
+						<div className="flex h-full flex-col">
+							<div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-black/10 px-4 py-3">
+								<div className="relative min-w-48 max-w-sm flex-1">
+									<Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+									<Input
+										placeholder="搜索名称或描述..."
+										value={listQuery.q}
+										onChange={(e) => setListQuery({ q: e.target.value })}
+										className="pl-8"
+									/>
+								</div>
+								<Select
+									value={listQuery.kind || "__all__"}
+									onValueChange={(v) => setListQuery({ kind: v === "__all__" ? "" : v })}
+								>
+									<SelectTrigger className="w-28">
+										<SelectValue placeholder="种类" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="__all__">全部种类</SelectItem>
+										<SelectItem value="STATIC">静态</SelectItem>
+										<SelectItem value="CONSUMABLE">消耗型</SelectItem>
+										<SelectItem value="TEMPORAL">时间型</SelectItem>
+										<SelectItem value="VIRTUAL">虚拟型</SelectItem>
+									</SelectContent>
+								</Select>
+								<Select
+									value={listQuery.state || "__all__"}
+									onValueChange={(v) => setListQuery({ state: v === "__all__" ? "" : v })}
+								>
+									<SelectTrigger className="w-28">
+										<SelectValue placeholder="状态" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="__all__">全部状态</SelectItem>
+										<SelectItem value="ACTIVE">在用</SelectItem>
+										<SelectItem value="PENDING_RESTOCK">待补充</SelectItem>
+										<SelectItem value="PENDING_DISCARD">待废弃</SelectItem>
+										<SelectItem value="ARCHIVED">已归档</SelectItem>
+										<SelectItem value="DISCARDED">已废弃</SelectItem>
+									</SelectContent>
+								</Select>
+								<Select
+									value={listQuery.sort}
+									onValueChange={(v) => setListQuery({ sort: v as (typeof LIST_SORT_FIELDS)[number] })}
+								>
+									<SelectTrigger className="w-28">
+										<SelectValue placeholder="排序" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="createdAt">创建时间</SelectItem>
+										<SelectItem value="name">名称</SelectItem>
+										<SelectItem value="kind">种类</SelectItem>
+										<SelectItem value="state">状态</SelectItem>
+										<SelectItem value="quantity">数量</SelectItem>
+									</SelectContent>
+								</Select>
+								<Select
+									value={listQuery.order}
+									onValueChange={(v) => setListQuery({ order: v as (typeof LIST_ORDER)[number] })}
+								>
+									<SelectTrigger className="w-24">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="asc">升序</SelectItem>
+										<SelectItem value="desc">降序</SelectItem>
+									</SelectContent>
+								</Select>
+								<span className="text-muted-foreground text-sm">
+									{listItems.length} / {assets.length}
+								</span>
+							</div>
+							<div
+								className="min-h-0 flex-1 overflow-auto p-4"
+								onContextMenu={handleRootContextMenu}
+							>
+								<ul className="flex flex-col gap-2">
+									{listItems.map((asset) => (
+										<li key={asset.id}>
+											<div
+												data-context-menu-handled
+												onContextMenu={(e) => handleAssetContextMenu(asset.id, e)}
+											>
+												<AssetCardHorizontal asset={asset} />
+											</div>
+										</li>
+									))}
+								</ul>
+							</div>
+						</div>
+					)}
+				</div>
+			</div>
 			<SpaceContextMenu
 				open={menu.open}
 				x={menu.x}
@@ -199,6 +426,7 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 				onClose={handleMenuClose}
 				onCreateAsset={handleCreateAsset}
 				onDeleteAsset={handleDeleteAsset}
+				onGoToAssetInSpace={handleGoToAssetInSpace}
 			/>
 			<CreateAssetDialog
 				spaceId={spaceId}

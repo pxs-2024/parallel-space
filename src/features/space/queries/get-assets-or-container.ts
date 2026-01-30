@@ -29,6 +29,7 @@ export const getAssetsAndContainers = async (spaceId: string) => {
 					nextDueAt: true,
 					refUrl: true,
 					expiresAt: true,
+					createdAt: true,
 				},
 			},
 		},

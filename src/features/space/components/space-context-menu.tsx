@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Package, Trash2 } from "lucide-react";
+import { Package, Trash2, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type SpaceMenuContext = 
+export type SpaceMenuContext =
 	| { type: "root" }
 	| { type: "asset"; assetId: string };
 
@@ -16,6 +16,7 @@ type SpaceContextMenuProps = {
 	onClose: () => void;
 	onCreateAsset: () => void;
 	onDeleteAsset?: (assetId: string) => void;
+	onGoToAssetInSpace?: (assetId: string) => void;
 };
 
 export function SpaceContextMenu({
@@ -26,6 +27,7 @@ export function SpaceContextMenu({
 	onClose,
 	onCreateAsset,
 	onDeleteAsset,
+	onGoToAssetInSpace,
 }: SpaceContextMenuProps) {
 	const menuRef = useRef<HTMLDivElement>(null);
 
@@ -49,6 +51,13 @@ export function SpaceContextMenu({
 	const handleNewAsset = () => {
 		onCreateAsset();
 		onClose();
+	};
+
+	const handleGoToAssetInSpace = () => {
+		if (context?.type === "asset" && onGoToAssetInSpace) {
+			onGoToAssetInSpace(context.assetId);
+			onClose();
+		}
 	};
 
 	const handleDeleteAsset = () => {
@@ -93,15 +102,26 @@ export function SpaceContextMenu({
 								新建物品
 							</button>
 						) : (
-							<button
-								type="button"
-								className={destructiveItemClass}
-								role="menuitem"
-								onClick={handleDeleteAsset}
-							>
-								<Trash2 />
-								删除物品
-							</button>
+							<>
+								<button
+									type="button"
+									className={itemClass}
+									role="menuitem"
+									onClick={handleGoToAssetInSpace}
+								>
+									<LayoutGrid className="text-muted-foreground" />
+									跳转到空间中的物品
+								</button>
+								<button
+									type="button"
+									className={destructiveItemClass}
+									role="menuitem"
+									onClick={handleDeleteAsset}
+								>
+									<Trash2 />
+									删除物品
+								</button>
+							</>
 						)}
 					</div>
 				</>

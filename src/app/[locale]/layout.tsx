@@ -10,6 +10,7 @@ import { Locale } from "next-intl";
 import { getMessages, setRequestLocale } from "next-intl/server";
 import { routing } from "@/i18n/routing";
 import { notFound } from "next/navigation";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 const geistSans = Geist({
 	variable: "--font-geist-sans",
@@ -45,8 +46,9 @@ export default async function RootLayout({
 	return (
 		<html lang={locale} suppressHydrationWarning>
 			<body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-				<ThemeProvider>
-					<LocalMessageProvider locale={locale} messages={messages}>
+				<NuqsAdapter>
+					<ThemeProvider>
+						<LocalMessageProvider locale={locale} messages={messages}>
 						<Header />
 						<div className="flex h-screen overflow-hidden border-collapse">
 							<Sidebar />
@@ -63,8 +65,9 @@ export default async function RootLayout({
 							</main>
 						</div>
 						<Toaster expand />
-					</LocalMessageProvider>
-				</ThemeProvider>
+						</LocalMessageProvider>
+					</ThemeProvider>
+				</NuqsAdapter>
 			</body>
 		</html>
 	);
