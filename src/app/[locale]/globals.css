@@ -8,6 +8,7 @@
 	--color-foreground: var(--foreground);
 	--font-sans: var(--font-geist-sans);
 	--font-mono: var(--font-geist-mono);
+	--font-geely: var(--font-geely-design);
 	--color-sidebar-ring: var(--sidebar-ring);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -155,4 +156,37 @@
 	body {
 		@apply bg-background text-foreground;
 	}
+}
+
+/* 自定义滚动条：细条、圆角、跟随主题 */
+.scrollbar-thin {
+	scrollbar-width: thin;
+	scrollbar-color: oklch(0.55 0.02 286 / 0.6) oklch(0.97 0.005 286 / 0.3);
+}
+.dark .scrollbar-thin {
+	scrollbar-color: oklch(0.6 0.02 286 / 0.5) oklch(0.25 0.006 286 / 0.4);
+}
+.scrollbar-thin::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+	background: oklch(0.97 0.005 286 / 0.3);
+	border-radius: 4px;
+}
+.dark .scrollbar-thin::-webkit-scrollbar-track {
+	background: oklch(0.25 0.006 286 / 0.4);
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+	background: oklch(0.55 0.02 286 / 0.6);
+	border-radius: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+	background: oklch(0.45 0.02 286 / 0.8);
+}
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+	background: oklch(0.6 0.02 286 / 0.5);
+}
+.dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+	background: oklch(0.7 0.02 286 / 0.6);
 }

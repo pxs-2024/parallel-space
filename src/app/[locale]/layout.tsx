@@ -4,6 +4,8 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Sidebar } from "../_navigation/sidebar/components/sidebar";
 import { Header } from "../_navigation/header";
+import { LayoutBreadcrumb } from "../_navigation/layout-breadcrumb";
+import { PixelCanvasBackground } from "@/components/ui/pixel-canvas-background";
 import { Toaster } from "@/components/toaster";
 import { LocalMessageProvider } from "@/components/i18n/local-message-provider";
 import { Locale } from "next-intl";
@@ -11,6 +13,12 @@ import { getMessages, setRequestLocale } from "next-intl/server";
 import { routing } from "@/i18n/routing";
 import { notFound } from "next/navigation";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+import localFont from "next/font/local";
+
+const geelyDesign = localFont({
+	src: "../../../public/fonts/GeelyDesignType-B.ttf",
+	variable: "--font-geely-design",
+});
 
 const geistSans = Geist({
 	variable: "--font-geist-sans",
@@ -45,22 +53,29 @@ export default async function RootLayout({
 	const messages = await getMessages();
 	return (
 		<html lang={locale} suppressHydrationWarning>
-			<body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+			<body className={`${geistSans.variable} ${geistMono.variable} ${geelyDesign.variable} antialiased flex h-screen flex-col overflow-hidden bg-transparent`}>
 				<NuqsAdapter>
 					<ThemeProvider>
 						<LocalMessageProvider locale={locale} messages={messages}>
-						<Header />
-						<div className="flex h-screen overflow-hidden border-collapse">
+						<PixelCanvasBackground
+							colors={["var(--primary)", "var(--chart-1)", "var(--chart-2)"]}
+							gap={500}
+							speed={50}
+						/>
+						<div className="shrink-0">
+							<Header />
+						</div>
+						<div className="relative z-10 flex min-h-0 flex-1 overflow-hidden border-collapse">
 							<Sidebar />
 							<main
 								className="
-              min-h-screen flex-1
+              flex min-h-0 flex-1 flex-col
               overflow-y-auto overflow-x-hidden
               py-24 px-8
               bg-secondary/20
-              flex flex-col
               "
 							>
+								<LayoutBreadcrumb />
 								{children}
 							</main>
 						</div>

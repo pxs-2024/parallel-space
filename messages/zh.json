@@ -1,4 +1,8 @@
 {
+  "breadcrumb": {
+    "spaceDetail": "空间详情",
+    "actions": "行为"
+  },
   "nav": {
     "title": "平行空间",
     "language": "语言",

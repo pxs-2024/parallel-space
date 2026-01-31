@@ -4,7 +4,7 @@ type SpaceItemProps = {
 	space: Space;
 };
 const SpaceItem = ({ space }: SpaceItemProps) => {
-	return <CardCompact title={space.name} description={space.description} className="w-40 h-40" />;
+	return <CardCompact title={space.name} description={space.description} className="w-40 h-40 font-geely" />;
 };
 
 export { SpaceItem };
