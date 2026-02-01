@@ -2,20 +2,24 @@
 
 import { prisma } from "@/lib/prisma";
 import { getAuth } from "@/features/auth/queries/get-auth";
+import type { SessionPublic } from "@/lib/auth/types";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
  * 进入系统时调用：遍历当前用户所有消耗型资产，按消耗规则执行 AUTO_CONSUME，
  * 再根据更新后状态生成需用户确认的 RESTOCK/REMIND。
+ * @param auth - 可选，由调用方传入时避免重复 getAuth()
  */
-export async function processConsumablesAndGenerateActions(): Promise<void> {
-  const auth = await getAuth();
-  if (!auth) return;
+export async function processConsumablesAndGenerateActions(
+  auth?: SessionPublic | null
+): Promise<void> {
+  const currentAuth = auth ?? (await getAuth());
+  if (!currentAuth) return;
 
   const consumables = await prisma.asset.findMany({
     where: {
-      space: { userId: auth.user.id },
+      space: { userId: currentAuth.user.id },
       isDeleted: false,
       kind: "CONSUMABLE",
       consumeIntervalDays: { not: null },
@@ -108,7 +112,7 @@ export async function processConsumablesAndGenerateActions(): Promise<void> {
   // RESTOCK: 消耗型且数量 <= 补货点；排除 snooze 期内、已有未处理提示的 asset
   const needRestock = await prisma.asset.findMany({
     where: {
-      space: { userId: auth.user.id },
+      space: { userId: currentAuth.user.id },
       isDeleted: false,
       kind: "CONSUMABLE",
       quantity: { not: null },
@@ -153,7 +157,7 @@ export async function processConsumablesAndGenerateActions(): Promise<void> {
   // REMIND: 时间型/虚拟型到期或即将到期；排除 snooze 期内、已有未处理提示的 asset
   const temporals = await prisma.asset.findMany({
     where: {
-      space: { userId: auth.user.id },
+      space: { userId: currentAuth.user.id },
       isDeleted: false,
       kind: "TEMPORAL",
       nextDueAt: { not: null, lte: soon },
@@ -183,7 +187,7 @@ export async function processConsumablesAndGenerateActions(): Promise<void> {
 
   const virtuals = await prisma.asset.findMany({
     where: {
-      space: { userId: auth.user.id },
+      space: { userId: currentAuth.user.id },
       isDeleted: false,
       kind: "VIRTUAL",
       expiresAt: { not: null, lte: soon },

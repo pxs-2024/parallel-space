@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 平行空间（Parallel Space）
 
-## Getting Started
+规则驱动的个人资产管理工具：用可视化画布把「物品 / 资产」与「待做决策」连起来，在需要时提醒你。
 
-First, run the development server:
+**技术栈**：Next.js (App Router) + TypeScript + Tailwind / shadcn/ui + Prisma + PostgreSQL，Session + Argon2 登录，next-intl 国际化。
+
+---
+
+## 快速开始
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+cp .env.example .env   # 配置 DATABASE_URL 等
+pnpm prisma db push
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+浏览器打开 [http://localhost:3000](http://localhost:3000)，注册/登录后即可使用。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 主要功能与使用
 
-## Learn More
+### 空间（Space）
 
-To learn more about Next.js, take a look at the following resources:
+- **入口**：侧栏「空间」→ 空间列表。
+- 登录后若无空间，会自动创建一个默认空间「我的空间」。
+- **新建空间**：列表页点击「创建空间」，填写名称与描述。
+- **修改空间**：在空间卡片上**右键** →「修改空间」，可改名称、描述。
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 资产（Asset）
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **入口**：进入某个空间 → 该空间的画布/列表。
+- **新建资产**：空间内点击「添加资产」，选择类型（静态 / 消耗型 / 时间型 / 虚拟型），填写名称及类型相关字段（如补货点、到期日等）。
+- **编辑/删除**：在资产卡片上操作（列表或画布）；删除为软删除，可筛选「已归档」查看。
+- **画布**：空间内可切换「画布」视图，拖拽资产卡片排布；位置会自动保存。
 
-## Deploy on Vercel
+### 决策中心（Action Center）
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **入口**：侧栏「决策」。
+- 系统根据规则生成待处理事项：**补货**（数量 ≤ 补货点）、**到期/提醒**（时间型/虚拟型临近到期）、**待丢弃**（消耗型数量为 0）等。
+- **操作**：对每条可「补充（填数量）」「确认丢弃」「忽略（一天/一周/一月）」或从建议创建为正式待办；处理后会更新资产状态。
+- **筛选**：支持按类型、时间、关键词搜索，状态会同步到 URL 便于分享。
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 历史
+
+- **入口**：侧栏「历史」。
+- 按空间查看已处理/已忽略的 Action 记录。
+
+---
+
+## 常用命令
+
+| 命令 | 说明 |
+|------|------|
+| `pnpm dev` | 开发服务器 |
+| `pnpm build` / `pnpm start` | 构建与生产运行 |
+| `pnpm prisma db push` | 同步数据库 schema |
+| `pnpm prisma-generate` | 生成 Prisma Client |
+
+更细的产品说明与规则定义见 [docs/PRODUCT.md](docs/PRODUCT.md)。
