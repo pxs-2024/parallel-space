@@ -18,11 +18,11 @@ export async function deleteAsset(
 		});
 
 		if (!asset) {
-			return toActionState("ERROR", "物品不存在", null);
+			return toActionState("ERROR", "物品不存在", undefined);
 		}
 
 		if (asset.spaceId !== spaceId) {
-			return toActionState("ERROR", "无权删除此物品", null);
+			return toActionState("ERROR", "无权删除此物品", undefined);
 		}
 
 		// 软删除：设置 isDeleted 为 true
@@ -35,8 +35,8 @@ export async function deleteAsset(
 		const locale = await getLocale();
 		revalidatePath(`/${locale}${spacePath(spaceId)}`);
 
-		return toActionState("SUCCESS", "物品已删除", null);
+		return toActionState("SUCCESS", "物品已删除", undefined);
 	} catch (error) {
-		return fromErrorToActionState(error, null);
+		return fromErrorToActionState(error, new FormData());
 	}
 }

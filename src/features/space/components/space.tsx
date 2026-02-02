@@ -38,8 +38,9 @@ type QueryAsset = Prisma.AssetGetPayload<{
 		quantity: true;
 		unit: true;
 		reorderPoint: true;
-			dueAt: true;
-			lastDoneAt: true;
+		consumeIntervalDays: true;
+		dueAt: true;
+		lastDoneAt: true;
 		nextDueAt: true;
 		refUrl: true;
 		expiresAt: true;
@@ -103,8 +104,8 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 				const bT = b.createdAt ? new Date(b.createdAt).getTime() : 0;
 				return order === "asc" ? aT - bT : bT - aT;
 			}
-			let aVal: string | number | null = (a as Record<string, string | number | null>)[sortField] ?? null;
-			let bVal: string | number | null = (b as Record<string, string | number | null>)[sortField] ?? null;
+			let aVal: string | number | null = (a as unknown as Record<string, string | number | null>)[sortField] ?? null;
+			let bVal: string | number | null = (b as unknown as Record<string, string | number | null>)[sortField] ?? null;
 			if (aVal == null) aVal = "";
 			if (bVal == null) bVal = "";
 			if (typeof aVal === "number" && typeof bVal === "number") {

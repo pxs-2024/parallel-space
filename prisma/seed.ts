@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import { hash } from "@node-rs/argon2";
 import {
+	Prisma,
 	PrismaClient,
 	AssetKind,
 	AssetState,
@@ -189,7 +190,7 @@ const seed = async () => {
 		const spaceName = spaces[sIdx].name;
 
 		// 每个空间：2 个 STATIC，若干 CONSUMABLE，部分 TEMPORAL/VIRTUAL
-		const toCreate: Parameters<typeof prisma.asset.createMany>[0]["data"] = [];
+		const toCreate: Prisma.AssetCreateManyInput[] = [];
 
 		// STATIC
 		for (let i = 0; i < 2; i++) {

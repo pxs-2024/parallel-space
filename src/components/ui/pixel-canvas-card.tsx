@@ -204,7 +204,7 @@ export function PixelCanvasCard({
 					colors[Math.floor(Math.random() * colors.length)] ?? DEFAULT_COLORS[0];
 				const delay = reducedMotionRef.current ? 0 : getDistance(x, y);
 				pixels.push(
-					new Pixel({ ctx, width, height, x, y, color, speedVal, delay })
+					new Pixel({ ctx, width, height, x, y, color, speed: speedVal, delay })
 				);
 			}
 		}

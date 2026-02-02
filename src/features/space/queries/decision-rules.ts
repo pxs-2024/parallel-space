@@ -1,4 +1,16 @@
-import type { AssetWithSpace } from "./get-all-assets-for-decisions";
+/** 资产 + 空间信息，供决策规则使用 */
+export type AssetWithSpace = {
+  id: string;
+  name: string;
+  kind: string;
+  quantity: number | null;
+  reorderPoint: number | null;
+  unit: string | null;
+  spaceId: string;
+  spaceName: string;
+  nextDueAt: Date | null;
+  expiresAt: Date | null;
+};
 
 const DUE_SOON_DAYS = 7;
 
