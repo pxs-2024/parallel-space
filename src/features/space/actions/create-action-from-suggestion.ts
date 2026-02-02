@@ -40,7 +40,7 @@ export async function createActionFromSuggestion(params: CreateParams) {
   });
 
   const locale = await getLocale();
-  revalidatePath(`/${locale}/decisions`);
+  revalidatePath(`/${locale}/todo`);
 
   return { ok: true };
 }

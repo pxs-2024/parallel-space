@@ -8,4 +8,4 @@ export const getAuth = cache(async (): Promise<SessionPublic | null> => {
 	const session = await getCurrentSession();
 	if (!session) return null;
 	return session;
-});
+}) as unknown as (() => Promise<SessionPublic | null>);

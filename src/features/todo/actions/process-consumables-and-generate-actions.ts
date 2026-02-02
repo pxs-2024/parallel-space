@@ -7,19 +7,15 @@ import type { SessionPublic } from "@/lib/auth/types";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
- * 进入系统时调用：遍历当前用户所有消耗型资产，按消耗规则执行 AUTO_CONSUME，
- * 再根据更新后状态生成需用户确认的 RESTOCK/REMIND。
- * @param auth - 可选，由调用方传入时避免重复 getAuth()
+ * 按用户执行：消耗型资产 AUTO_CONSUME + RESTOCK/REMIND 生成。
+ * 供 cron API 遍历所有用户调用，或单用户入口复用。
  */
-export async function processConsumablesAndGenerateActions(
-  auth?: SessionPublic | null
+export async function processConsumablesAndGenerateActionsForUser(
+  userId: string
 ): Promise<void> {
-  const currentAuth = auth ?? (await getAuth());
-  if (!currentAuth) return;
-
   const consumables = await prisma.asset.findMany({
     where: {
-      space: { userId: currentAuth.user.id },
+      space: { userId },
       isDeleted: false,
       kind: "CONSUMABLE",
       consumeIntervalDays: { not: null },
@@ -56,7 +52,6 @@ export async function processConsumablesAndGenerateActions(
     if (totalConsume <= 0) continue;
 
     const newQty = Math.max(0, (a.quantity ?? 0) - totalConsume);
-    // 精确计算上次消耗时间：刚好够上一次消耗的时刻
     const lastConsumeMs = start + periods * intervalDays * MS_PER_DAY;
     const lastDoneAt = new Date(lastConsumeMs);
 
@@ -109,10 +104,9 @@ export async function processConsumablesAndGenerateActions(
 
   const soon = new Date(now.getTime() + 7 * MS_PER_DAY);
 
-  // RESTOCK: 消耗型且数量 <= 补货点；排除 snooze 期内、已有未处理提示的 asset
   const needRestock = await prisma.asset.findMany({
     where: {
-      space: { userId: currentAuth.user.id },
+      space: { userId },
       isDeleted: false,
       kind: "CONSUMABLE",
       quantity: { not: null },
@@ -154,10 +148,9 @@ export async function processConsumablesAndGenerateActions(
     });
   }
 
-  // REMIND: 时间型/虚拟型到期或即将到期；排除 snooze 期内、已有未处理提示的 asset
   const temporals = await prisma.asset.findMany({
     where: {
-      space: { userId: currentAuth.user.id },
+      space: { userId },
       isDeleted: false,
       kind: "TEMPORAL",
       nextDueAt: { not: null, lte: soon },
@@ -187,7 +180,7 @@ export async function processConsumablesAndGenerateActions(
 
   const virtuals = await prisma.asset.findMany({
     where: {
-      space: { userId: currentAuth.user.id },
+      space: { userId },
       isDeleted: false,
       kind: "VIRTUAL",
       expiresAt: { not: null, lte: soon },
@@ -214,4 +207,12 @@ export async function processConsumablesAndGenerateActions(
       data: { openPromptActionId: action.id },
     });
   }
+}
+
+export async function processConsumablesAndGenerateActions(
+  auth?: SessionPublic | null
+): Promise<void> {
+  const currentAuth = auth ?? (await getAuth());
+  if (!currentAuth) return;
+  await processConsumablesAndGenerateActionsForUser(currentAuth.user.id);
 }

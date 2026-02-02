@@ -3,7 +3,7 @@
 /**
  * 像素画布卡片：悬浮/聚焦时从中心扩散的像素动画背景，支持主题色与 prefers-reduced-motion。
  */
-import * as React from "react";
+import { useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 type PixelConfig = {
@@ -133,17 +133,17 @@ export function PixelCanvasCard({
 	className,
 	children,
 }: PixelCanvasCardProps) {
-	const containerRef = React.useRef<HTMLDivElement>(null);
-	const canvasRef = React.useRef<HTMLCanvasElement>(null);
-	const pixelsRef = React.useRef<Pixel[]>([]);
-	const animationRef = React.useRef<number>(0);
-	const timePreviousRef = React.useRef(performance.now());
-	const reducedMotionRef = React.useRef(
+	const containerRef = useRef<HTMLDivElement>(null);
+	const canvasRef = useRef<HTMLCanvasElement>(null);
+	const pixelsRef = useRef<Pixel[]>([]);
+	const animationRef = useRef<number>(0);
+	const timePreviousRef = useRef(performance.now());
+	const reducedMotionRef = useRef(
 		typeof window !== "undefined" &&
 			window.matchMedia("(prefers-reduced-motion: reduce)").matches
 	);
 
-	const runAnimation = React.useCallback(
+	const runAnimation = useCallback(
 		(fnName: "appear" | "disappear") => {
 			const canvas = canvasRef.current;
 			const ctx = canvas?.getContext("2d");
@@ -173,7 +173,7 @@ export function PixelCanvasCard({
 		[]
 	);
 
-	const init = React.useCallback(() => {
+	const init = useCallback(() => {
 		const container = containerRef.current;
 		const canvas = canvasRef.current;
 		if (!container || !canvas) return;
@@ -211,7 +211,7 @@ export function PixelCanvasCard({
 		pixelsRef.current = pixels;
 	}, [colors, gap, speed]);
 
-	React.useEffect(() => {
+	useEffect(() => {
 		const container = containerRef.current;
 		if (!container) return;
 		init();
@@ -220,14 +220,14 @@ export function PixelCanvasCard({
 		return () => ro.disconnect();
 	}, [init]);
 
-	React.useEffect(() => {
+	useEffect(() => {
 		return () => {
 			if (animationRef.current) cancelAnimationFrame(animationRef.current);
 		};
 	}, []);
 
-	const handleEnter = React.useCallback(() => runAnimation("appear"), [runAnimation]);
-	const handleLeave = React.useCallback(() => runAnimation("disappear"), [runAnimation]);
+	const handleEnter = useCallback(() => runAnimation("appear"), [runAnimation]);
+	const handleLeave = useCallback(() => runAnimation("disappear"), [runAnimation]);
 
 	return (
 		<div

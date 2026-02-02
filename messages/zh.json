@@ -3,6 +3,19 @@
     "spaceDetail": "空间详情",
     "actions": "行为"
   },
+  "auth": {
+    "signIn": "登录",
+    "signInDescription": "登录您的账户",
+    "signUp": "注册",
+    "signUpDescription": "创建账户以开始使用",
+    "email": "邮箱",
+    "password": "密码",
+    "username": "用户名",
+    "confirmPassword": "确认密码",
+    "noAccountYet": "还没有账户？",
+    "forgotPassword": "忘记密码？",
+    "haveAccount": "已有账户？去登录。"
+  },
   "nav": {
     "title": "平行空间",
     "language": "语言",
@@ -17,7 +30,7 @@
     "signOut": "退出登录"
   },
   "side": {
-    "decisions": "决策",
+    "todo": "待办",
     "spaces": "空间",
     "history": "历史记录",
     "account": "个人资料"

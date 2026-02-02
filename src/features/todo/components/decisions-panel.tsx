@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Search } from "lucide-react";
 import { useQueryStates, parseAsString, parseAsStringLiteral } from "nuqs";
 import { Input } from "@/components/ui/input";
@@ -11,13 +11,12 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import type { PendingConfirmAction } from "@/features/space/queries/get-all-assets-for-decisions";
-import type { SuggestedAction } from "@/features/space/queries/decision-rules";
+import type { PendingConfirmAction } from "@/features/todo/queries/get-todo-page-data";
 import {
 	DecisionCard,
 	getDecisionItemKey,
 	type DecisionItem,
-} from "@/features/space/components/decision-card";
+} from "@/features/todo/components/decision-card";
 
 const DECISION_TYPE_OPTIONS = ["all", "RESTOCK", "REMIND", "DISCARD"] as const;
 const DECISION_TIME_OPTIONS = ["all", "overdue", "week", "month"] as const;
@@ -29,57 +28,43 @@ const decisionQueryParsers = {
 	time: parseAsStringLiteral(DECISION_TIME_OPTIONS).withDefault("all"),
 };
 
-function buildMergedItems(
-	pending: PendingConfirmAction[],
-	suggested: SuggestedAction[]
-): DecisionItem[] {
-	const pendingItems: DecisionItem[] = pending.map((data) => ({ kind: "pending", data }));
-	const suggestedItems: DecisionItem[] = suggested.map((data) => ({
-		kind: "suggestion",
-		data,
-	}));
-	return [...pendingItems, ...suggestedItems];
+function toItems(pending: PendingConfirmAction[]): DecisionItem[] {
+	return pending.map((data) => ({ kind: "pending", data }));
 }
 
 function getItemType(item: DecisionItem): "RESTOCK" | "REMIND" | "DISCARD" {
-	return item.kind === "pending" ? item.data.type : item.data.type;
+	return item.data.type;
 }
 
 function getItemDueAt(item: DecisionItem): Date | null {
-	const d = item.kind === "pending" ? item.data.dueAt : item.data.dueAt;
-	return d ?? null;
+	return item.data.dueAt ?? null;
 }
 
 function getItemSearchText(item: DecisionItem): string {
-	const name = item.kind === "pending" ? item.data.assetName : item.data.assetName;
-	const space = item.kind === "pending" ? item.data.spaceName : item.data.spaceName;
-	return `${space} ${name}`;
+	return `${item.data.spaceName} ${item.data.assetName}`;
 }
 
 type DecisionsPanelProps = {
 	pending: PendingConfirmAction[];
-	suggested: SuggestedAction[];
 };
 
-export function DecisionsPanel({ pending, suggested }: DecisionsPanelProps) {
-	const [items, setItems] = React.useState<DecisionItem[]>(() =>
-		buildMergedItems(pending, suggested)
-	);
+export function DecisionsPanel({ pending }: DecisionsPanelProps) {
+	const [items, setItems] = useState<DecisionItem[]>(() => toItems(pending));
 	const [query, setQuery] = useQueryStates(decisionQueryParsers, { shallow: false });
-	const [searchInput, setSearchInput] = React.useState(query.q);
-	const searchDebounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+	const [searchInput, setSearchInput] = useState(query.q);
+	const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-	React.useEffect(() => {
+	useEffect(() => {
 		setSearchInput(query.q);
 	}, [query.q]);
 
-	React.useEffect(() => {
+	useEffect(() => {
 		return () => {
 			if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
 		};
 	}, []);
 
-	const handleSearchChange = React.useCallback(
+	const handleSearchChange = useCallback(
 		(value: string) => {
 			setSearchInput(value);
 			if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
@@ -91,11 +76,18 @@ export function DecisionsPanel({ pending, suggested }: DecisionsPanelProps) {
 		[setQuery]
 	);
 
-	React.useEffect(() => {
-		setItems(buildMergedItems(pending, suggested));
-	}, [pending, suggested]);
+	useEffect(() => {
+		setItems(toItems(pending));
+	}, [pending]);
 
-	const handleRemoving = React.useCallback((key: string) => {
+	const [now, setNow] = useState(0);
+	useEffect(() => {
+		if (query.time !== "all") {
+			setNow(Date.now());
+		}
+	}, [query.time]);
+
+	const handleRemoving = useCallback((key: string) => {
 		const remove = () =>
 			setItems((prev) => prev.filter((i) => getDecisionItemKey(i) !== key));
 
@@ -110,7 +102,7 @@ export function DecisionsPanel({ pending, suggested }: DecisionsPanelProps) {
 		}, 280);
 	}, []);
 
-	const filteredItems = React.useMemo(() => {
+	const filteredItems = useMemo(() => {
 		let result = items;
 		const q = query.q.trim().toLowerCase();
 		if (q) {
@@ -121,8 +113,7 @@ export function DecisionsPanel({ pending, suggested }: DecisionsPanelProps) {
 		if (query.type !== "all") {
 			result = result.filter((item) => getItemType(item) === query.type);
 		}
-		if (query.time !== "all") {
-			const now = Date.now();
+		if (query.time !== "all" && now > 0) {
 			const weekMs = 7 * 24 * 60 * 60 * 1000;
 			const monthMs = 30 * 24 * 60 * 60 * 1000;
 			result = result.filter((item) => {
@@ -136,7 +127,7 @@ export function DecisionsPanel({ pending, suggested }: DecisionsPanelProps) {
 			});
 		}
 		return result;
-	}, [items, query.q, query.type, query.time]);
+	}, [items, query.q, query.type, query.time, now]);
 
 	const isEmpty = items.length === 0;
 	const hasNoResults = !isEmpty && filteredItems.length === 0;
@@ -185,14 +176,14 @@ export function DecisionsPanel({ pending, suggested }: DecisionsPanelProps) {
 
 			{isEmpty ? (
 				<div className="rounded-xl border bg-muted/30 px-4 py-8 text-center text-muted-foreground">
-					暂无待决策项
+					暂无待办项
 				</div>
 			) : hasNoResults ? (
 				<div className="rounded-xl border bg-muted/30 px-4 py-8 text-center text-muted-foreground">
 					暂无符合条件项
 				</div>
 			) : (
-				<div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2">
+				<div className="scrollbar-hide flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2">
 					{filteredItems.map((item) => {
 						const key = getDecisionItemKey(item);
 						const safeName = `card-${key.replace(/[^a-zA-Z0-9-]/g, "-")}`;

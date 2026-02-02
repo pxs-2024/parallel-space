@@ -2,31 +2,31 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent } from "../ui/card";
 import { useState } from "react";
 import { Prisma } from "@/generated/prisma/client";
-import { Card as CardInner } from "./card";
+import { AssetCardDragContent } from "./asset-card-drag-content";
+
 type AssetCardProps = {
 	asset: Prisma.AssetGetPayload<{
 		select: {
-			id: true,
-			name: true,
-			description: true,
-			kind: true,
-			state: true,
-			quantity: true,
-			unit: true,
-			reorderPoint: true,
-			dueAt: true,
-			intervalDays: true,
-			lastDoneAt: true,
-			nextDueAt: true,
-			refUrl: true,
-			expiresAt: true,
-		}
+			id: true;
+			name: true;
+			description: true;
+			kind: true;
+			state: true;
+			quantity: true;
+			unit: true;
+			reorderPoint: true;
+			consumeIntervalDays: true;
+			dueAt: true;
+			lastDoneAt: true;
+			nextDueAt: true;
+			refUrl: true;
+			expiresAt: true;
+			createdAt: true;
+		};
 	}>;
 };
 
-const AssetCard = ({
-	asset,
-}: AssetCardProps) => {
+const AssetCard = ({ asset }: AssetCardProps) => {
 	const [isGrabbing, setIsGrabbing] = useState(false);
 
 	const handleMouseDown = () => {
@@ -42,16 +42,25 @@ const AssetCard = ({
 			onMouseDown={handleMouseDown}
 			onMouseUp={handleMouseUp}
 			className={cn(
-				// 基础样式（始终存在）
-				"w-40 h-40 aspect-square rounded-3xl transition-[box-shadow,transform] duration-[300ms,250ms] ease-[ease,ease] shadow-[0_20px_40px_rgba(0,0,0,0.08)]",
-				// 状态样式
-				isGrabbing
-					? "cursor-grabbing shadow-[-1px_0_15px_0_rgba(34,33,81,0.01),0px_15px_15px_0_rgba(34,33,81,0.25)] scale-[1.06]"
-					: "cursor-grab shadow-none"
+				"group w-40 h-40 aspect-square rounded-3xl border border-border bg-transparent p-0 transition-all duration-200 ease-out cursor-grab overflow-visible",
+				"shadow-[0_4px_14px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_14px_rgba(0,0,0,0.25)]",
+				"hover:border-primary/20 hover:shadow-md dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.35)]",
+				isGrabbing &&
+					"cursor-grabbing scale-[1.05] border-primary/30 shadow-lg dark:shadow-[0_12px_28px_rgba(0,0,0,0.4)] ring-2 ring-primary/20"
 			)}
 		>
-			<CardContent className="flex h-full flex-col items-center justify-center gap-3">
-				<CardInner asset={asset} />
+			<CardContent className="flex h-full flex-col items-center justify-center p-0">
+				<AssetCardDragContent
+					asset={{
+						name: asset.name,
+						description: asset.description,
+						kind: asset.kind,
+						consumeIntervalDays: asset.consumeIntervalDays,
+						lastDoneAt: asset.lastDoneAt,
+						nextDueAt: asset.nextDueAt,
+						createdAt: asset.createdAt,
+					}}
+				/>
 			</CardContent>
 		</Card>
 	);

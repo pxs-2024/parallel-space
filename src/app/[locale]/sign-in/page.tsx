@@ -2,22 +2,24 @@ import { CardCompact } from "@/components/card-compact";
 import { SignInForm } from "@/features/auth/components/sign-in-form";
 import { passwordForgotPath, signUpPath } from "@/paths";
 import { Link } from "@/i18n/navigation";
+import { getTranslations } from "next-intl/server";
 
-const SignInPage = () => {
+const SignInPage = async () => {
+	const t = await getTranslations("auth");
 	return (
 		<div className="flex-1 flex flex-col justify-center items-center">
 			<CardCompact
-				title="Sign In"
-				description="Sign in your account"
+				title={t("signIn")}
+				description={t("signInDescription")}
 				className="w-full max-w-[420px] animate-fade-in-from-top"
 				content={<SignInForm />}
 				footer={
 					<div className="w-full flex justify-between">
 						<Link className="text-sm text-muted-foreground" href={signUpPath()}>
-							No account yet?
+							{t("noAccountYet")}
 						</Link>
 						<Link className="text-sm text-muted-foreground" href={passwordForgotPath()}>
-							ForgotPassword?
+							{t("forgotPassword")}
 						</Link>
 					</div>
 				}

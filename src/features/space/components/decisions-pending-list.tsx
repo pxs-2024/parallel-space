@@ -5,8 +5,8 @@ import {
   snoozeAction,
   completeAction,
   type SnoozeChoice,
-} from "@/features/space/actions/respond-to-action";
-import type { PendingConfirmAction } from "@/features/space/queries/get-all-assets-for-decisions";
+} from "@/features/todo/actions/respond-to-action";
+import type { PendingConfirmAction } from "@/features/todo/queries/get-todo-page-data";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";

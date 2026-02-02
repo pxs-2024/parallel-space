@@ -1,12 +1,12 @@
-import { accountProfilePath, decisionsPath, historyPath, spacesPath } from "@/paths";
+import { accountProfilePath, todoPath, historyPath, spacesPath } from "@/paths";
 import { LucideBook, LucideCircleUser, LucideHistory, LucideLibrary } from "lucide-react";
 import { NavItem } from "./types";
 
 export const navItems: NavItem[] = [
 	{
-		title: "decisions",
+		title: "todo",
 		icon: <LucideLibrary />,
-		href: decisionsPath(),
+		href: todoPath(),
 	},
 	{
 		title: "spaces",

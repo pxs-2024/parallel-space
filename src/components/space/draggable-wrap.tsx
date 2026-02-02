@@ -8,28 +8,29 @@ type DraggableCardProps = {
 	viewportScale: number;
 	children?: React.ReactNode;
 	onContextMenu?: (e: React.MouseEvent) => void;
+	/** 为 true 时不可拖拽（与平移背景互斥，或未进入移动模式） */
+	disabled?: boolean;
 };
 
-const DraggableWrap = ({ position, viewportScale, children, onContextMenu }: DraggableCardProps) => {
+const DraggableWrap = ({ position, viewportScale, children, onContextMenu, disabled = false }: DraggableCardProps) => {
 	const { setNodeRef, listeners, attributes, transform } = useDraggable({
 		id: position.id,
 		data: {
 			type: "asset",
 			id: position.id,
 		},
+		disabled,
 	});
+
 	const tx = transform ? transform.x / viewportScale : 0;
 	const ty = transform ? transform.y / viewportScale : 0;
-
-	// 拖拽时设置高 z-index
 	const isDragging = !!transform;
 
 	return (
 		<div
 			className={"absolute will-change-transform"}
 			ref={setNodeRef}
-			{...listeners}
-			{...attributes}
+			{...(disabled ? {} : { ...listeners, ...attributes })}
 			data-context-menu-handled
 			onContextMenu={onContextMenu}
 			style={{

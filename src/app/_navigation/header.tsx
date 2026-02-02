@@ -13,32 +13,30 @@ import { LocalSwitch } from "@/components/i18n/local-switch";
 const Header = () => {
 	const { user, isFetched } = useAuth();
 	const t = useTranslations("nav");
-	if (!isFetched) {
-		return null;
-	}
 
-	const navItems = user ? (
-		<AccountDropdown user={user} />
-	) : (
-		<>
-			<Link
-				className={buttonVariants({
-					variant: "outline",
-				})}
-				href={signUpPath()}
-			>
-				{t("signUp")}
-			</Link>
-			<Link
-				className={buttonVariants({
-					variant: "default",
-				})}
-				href={signInPath()}
-			>
-				{t("signIn")}							
-			</Link>
-		</>
-	);
+	const navItems =
+		!isFetched ? null : user ? (
+			<AccountDropdown user={user} />
+		) : (
+			<>
+				<Link
+					className={buttonVariants({
+						variant: "outline",
+					})}
+					href={signUpPath()}
+				>
+					{t("signUp")}
+				</Link>
+				<Link
+					className={buttonVariants({
+						variant: "default",
+					})}
+					href={signInPath()}
+				>
+					{t("signIn")}
+				</Link>
+			</>
+		);
 
 	return (
 		<nav
@@ -62,7 +60,7 @@ const Header = () => {
 				</Link>
 			</div>
 			<div className="flex align-items gap-x-2">
-				<LocalSwitch />	
+				<LocalSwitch />
 				<ThemeSwitcher />
 				{navItems}
 			</div>

@@ -28,7 +28,7 @@
 
 - `STATIC`：静态（手机、手办等）
 - `CONSUMABLE`：消耗型（洗发水、饮料等，支持数量、单位、补货点、周期消耗）
-- `TEMPORAL`：时间型（会员、证件等，支持下次到期 nextDueAt、周期 intervalDays）
+- `TEMPORAL`：时间型（会员、证件等，支持下次到期 nextDueAt）
 - `VIRTUAL`：虚拟型（权限、订阅等，支持 refUrl、expiresAt）
 
 **生命周期状态（State）**
@@ -42,7 +42,7 @@
 **能力字段（按类型）**
 
 - 消耗型：数量（quantity + unit）、补货点（reorderPoint）、消耗周期（consumeIntervalDays / consumeAmountPerTime）
-- 时间型：nextDueAt、lastDoneAt、intervalDays
+- 时间型：nextDueAt、lastDoneAt
 - 虚拟型：refUrl、expiresAt
 - 通用：软删除 isDeleted；忽略/提示相关 snoozeUntil、openPromptActionId
 

@@ -3,6 +3,19 @@
     "spaceDetail": "Space Detail",
     "actions": "Actions"
   },
+  "auth": {
+    "signIn": "Sign In",
+    "signInDescription": "Sign in your account",
+    "signUp": "Sign Up",
+    "signUpDescription": "Create an account to get started",
+    "email": "Email",
+    "password": "Password",
+    "username": "Username",
+    "confirmPassword": "Confirm Password",
+    "noAccountYet": "No account yet?",
+    "forgotPassword": "Forgot password?",
+    "haveAccount": "Have an account? Sign in."
+  },
   "nav": {
     "title": "ParallelSpace",
     "language": "Language",
@@ -17,7 +30,7 @@
     "signOut": "Sign Out"
   },
   "side": {
-    "decisions": "Decisions",
+    "todo": "To-do",
     "spaces": "Spaces",
     "history": "History",
     "account": "Account"

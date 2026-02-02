@@ -133,7 +133,7 @@ const CreateAssetDialog = ({
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+			<DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto scrollbar-hide">
 				<DialogHeader>
 					<DialogTitle>新建物品</DialogTitle>
 					{/* 步骤指示器 */}
@@ -334,18 +334,6 @@ const CreateAssetDialog = ({
 												)}
 											/>
 											<FieldError actionState={actionState} name="dueAt" />
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor="intervalDays">周期天数</Label>
-											<Input
-												id="intervalDays"
-												name="intervalDays"
-												type="number"
-												min="1"
-												placeholder="物品可用周期（天数）"
-												defaultValue={actionState.payload?.get("intervalDays") as string}
-											/>
-											<FieldError actionState={actionState} name="intervalDays" />
 										</div>
 									</>
 								)}

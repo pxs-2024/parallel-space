@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { Fragment } from "react";
 import { usePathname, Link } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -18,11 +18,15 @@ type BreadcrumbSegment = {
 	isCurrent: boolean;
 };
 
+const NO_BREADCRUMB_PATHS = ["/sign-in", "/sign-up"];
+
 function useBreadcrumbSegments(): BreadcrumbSegment[] {
 	const pathname = usePathname();
 	const tSide = useTranslations("side");
 	const tAccount = useTranslations("account");
 	const tBreadcrumb = useTranslations("breadcrumb");
+
+	if (NO_BREADCRUMB_PATHS.includes(pathname)) return [];
 
 	const segments = pathname.split("/").filter(Boolean);
 	if (segments.length === 0) return [];
@@ -36,8 +40,8 @@ function useBreadcrumbSegments(): BreadcrumbSegment[] {
 		const isLast = i === segments.length - 1;
 
 		let label: string;
-		if (segments[0] === "decisions") {
-			label = tSide("decisions");
+		if (segments[0] === "todo") {
+			label = tSide("todo");
 		} else if (segments[0] === "spaces") {
 			if (i === 0) label = tSide("spaces");
 			else if (i === 1 && seg !== "actions") label = tBreadcrumb("spaceDetail");
@@ -69,7 +73,7 @@ export function LayoutBreadcrumb() {
 		<Breadcrumb className="mb-4">
 			<BreadcrumbList>
 				{segments.map((seg, index) => (
-					<React.Fragment key={seg.href}>
+					<Fragment key={seg.href}>
 						<BreadcrumbItem>
 							{seg.isCurrent ? (
 								<BreadcrumbPage>{seg.label}</BreadcrumbPage>
@@ -80,7 +84,7 @@ export function LayoutBreadcrumb() {
 							)}
 						</BreadcrumbItem>
 						{index < segments.length - 1 && <BreadcrumbSeparator />}
-					</React.Fragment>
+					</Fragment>
 				))}
 			</BreadcrumbList>
 		</Breadcrumb>

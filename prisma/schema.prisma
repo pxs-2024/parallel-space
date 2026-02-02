@@ -92,7 +92,6 @@ model Asset {
 
   // 时间型
   dueAt         DateTime? // 过期时间 （过期性物品）
-  intervalDays  Int?  // 物品可用周期 （时间性消耗物品）
   lastDoneAt    DateTime? // 上次改动时间
   nextDueAt     DateTime? // 下次到期时间
 

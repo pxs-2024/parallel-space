@@ -9,6 +9,7 @@ import { AssetCard } from "@/components/assets/assets-card";
 import { AssetCardHorizontal } from "@/components/assets/asset-card-horizontal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useListenSpace } from "@/components/space/hooks/use-listen-space";
 import {
 	Select,
 	SelectContent,
@@ -21,7 +22,7 @@ import { updateAssetPosition } from "@/features/space/actions/update-asset-posit
 import { deleteAsset } from "@/features/space/actions/delete-asset";
 import { SpaceContextMenu, type SpaceMenuContext } from "@/features/space/components/space-context-menu";
 import { CreateAssetDialog } from "@/features/space/components/create-asset-drawer";
-import { LayoutGrid, List, Search } from "lucide-react";
+import { LayoutGrid, List, Search, Move, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryStates, parseAsString, parseAsStringLiteral } from "nuqs";
 
@@ -37,9 +38,8 @@ type QueryAsset = Prisma.AssetGetPayload<{
 		quantity: true;
 		unit: true;
 		reorderPoint: true;
-		dueAt: true;
-		intervalDays: true;
-		lastDoneAt: true;
+			dueAt: true;
+			lastDoneAt: true;
 		nextDueAt: true;
 		refUrl: true;
 		expiresAt: true;
@@ -66,6 +66,7 @@ type SpaceProps = {
 const Space = ({spaceId, initialAssets}: SpaceProps) => {
 	const router = useRouter();
 	const [, startTransition] = useTransition();
+	const { spaceDown } = useListenSpace();
 	const [viewport, setViewport] = useState<Viewport>({
 		vx: 0,
 		vy: 0,
@@ -73,6 +74,7 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 	});
 	const [assets, setAssets] = useState<QueryAsset[]>(initialAssets);
 	const [viewMode, setViewMode] = useState<"space" | "list">("list");
+	const [isEditMode, setIsEditMode] = useState(false);
 	const [focusAssetId, setFocusAssetId] = useState<string | null>(null);
 	const contentWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -161,29 +163,37 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 		context: SpaceMenuContext | null;
 	}>({ open: false, x: 0, y: 0, context: null });
 
-	const onDragEnd = async (e: DragEndEvent) => {
-		const { active, delta } = e;
-		const activeId = active?.id as string;
+	const onDragEnd = useCallback(
+		(e: DragEndEvent) => {
+			const { active, delta } = e;
+			const activeId = active?.id as string;
+			const activeAsset = assets.find((a) => a.id === activeId);
+			if (!activeAsset) return;
 
-		// 普通拖拽：更新位置
-		const activeAsset = assets.find((a) => a.id === activeId);
-		if (activeAsset) {
 			const newX = (activeAsset.x ?? 0) + delta.x / viewport.scale;
 			const newY = (activeAsset.y ?? 0) + delta.y / viewport.scale;
-			
-			// 更新本地 state
-			setAssets((prev) => (prev.map((asset) => {
-				if(asset.id === activeId) {
-					return { ...asset, x: newX, y: newY };
-				}
-				return asset;
-			})));
-			
-			// 保存到数据库
-			await updateAssetPosition(spaceId, activeId, newX, newY);
-			router.refresh();
+
+			setAssets((prev) =>
+				prev.map((asset) =>
+					asset.id === activeId ? { ...asset, x: newX, y: newY } : asset
+				)
+			);
+
+			// 仅在编辑模式下允许拖拽，且只更新本地；保存由「保存」按钮统一写库
+			if (!isEditMode) return;
+		},
+		[assets, viewport.scale, isEditMode]
+	);
+
+	const handleSavePositions = useCallback(async () => {
+		for (const asset of assets) {
+			const x = asset.x ?? 0;
+			const y = asset.y ?? 0;
+			await updateAssetPosition(spaceId, asset.id, x, y);
 		}
-	};
+		setIsEditMode(false);
+		router.refresh();
+	}, [assets, spaceId, router]);
 
 	const handleContextMenu = useCallback(
 		(ctx: SpaceMenuContext, e: React.MouseEvent) => {
@@ -267,7 +277,6 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 				// 转换为世界坐标
 				const worldX = (mx - viewport.vx) / viewport.scale;
 				const worldY = (my - viewport.vy) / viewport.scale;
-				
 				setCreatePosition({ x: worldX, y: worldY });
 			}
 			
@@ -280,25 +289,50 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 	return (
 		<>
 			<div className="flex h-full flex-col">
-				<div className="flex shrink-0 items-center gap-1 border-b border-black/10 px-3 py-2">
-					<Button
-						variant={viewMode === "space" ? "default" : "ghost"}
-						size="sm"
-						onClick={() => setViewMode("space")}
-						className="gap-1.5"
-					>
-						<LayoutGrid className="size-4" />
-						空间
-					</Button>
-					<Button
-						variant={viewMode === "list" ? "default" : "ghost"}
-						size="sm"
-						onClick={() => setViewMode("list")}
-						className="gap-1.5"
-					>
-						<List className="size-4" />
-						列表
-					</Button>
+				<div className="flex shrink-0 items-center justify-between gap-2 border-b border-black/10 px-3 py-2">
+					<div className="flex items-center gap-1">
+						<Button
+							variant={viewMode === "space" ? "default" : "ghost"}
+							size="sm"
+							onClick={() => setViewMode("space")}
+							className="gap-1.5"
+						>
+							<LayoutGrid className="size-4" />
+							空间
+						</Button>
+						<Button
+							variant={viewMode === "list" ? "default" : "ghost"}
+							size="sm"
+							onClick={() => setViewMode("list")}
+							className="gap-1.5"
+						>
+							<List className="size-4" />
+							列表
+						</Button>
+					</div>
+					{viewMode === "space" && (
+						isEditMode ? (
+							<Button
+								variant="default"
+								size="sm"
+								onClick={handleSavePositions}
+								className="gap-1.5"
+							>
+								<Save className="size-4" />
+								保存
+							</Button>
+						) : (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => setIsEditMode(true)}
+								className="gap-1.5"
+							>
+								<Move className="size-4" />
+								移动
+							</Button>
+						)
+					)}
 				</div>
 				<div ref={contentWrapperRef} className="min-h-0 flex-1 overflow-hidden">
 					{viewMode === "space" ? (
@@ -311,6 +345,7 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 							viewport={viewport}
 							onViewportChange={setViewport}
 							onContextMenu={handleRootContextMenu}
+							spaceDown={spaceDown}
 						>
 							{assets.map((asset) => (
 								<DraggableWrap
@@ -318,6 +353,7 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 									position={{ id: asset.id, x: asset.x ?? 0, y: asset.y ?? 0 }}
 									viewportScale={viewport.scale}
 									onContextMenu={(e) => handleAssetContextMenu(asset.id, e)}
+									disabled={!isEditMode || spaceDown}
 								>
 									<AssetCard asset={asset} />
 								</DraggableWrap>
@@ -398,7 +434,7 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 								</span>
 							</div>
 							<div
-								className="min-h-0 flex-1 overflow-auto p-4"
+								className="scrollbar-hide min-h-0 flex-1 overflow-auto p-4"
 								onContextMenu={handleRootContextMenu}
 							>
 								<ul className="flex flex-col gap-2">

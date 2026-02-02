@@ -71,6 +71,7 @@ export default async function RootLayout({
 								className="
               flex min-h-0 flex-1 flex-col
               overflow-y-auto overflow-x-hidden
+              scrollbar-hide
               py-24 px-8
               bg-secondary/20
               "

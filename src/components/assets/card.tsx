@@ -14,7 +14,6 @@ type AssetCardData = Prisma.AssetGetPayload<{
     unit: true;
     reorderPoint: true;
     dueAt: true;
-    intervalDays: true;
     lastDoneAt: true;
     nextDueAt: true;
     refUrl: true;
@@ -31,7 +30,7 @@ const AssetCard = ({ asset, className }: { asset: AssetCardData | undefined; cla
   if (!asset) return null;
 
   return (
-    <div className={cn("rounded-xl border bg-white p-4 text-sm", className)}>
+    <div className={cn("rounded-xl border border-border bg-card p-4 text-sm text-foreground", className)}>
       <header className="flex items-center justify-between gap-2 border-b pb-2">
         <span className="font-semibold">{asset.name}</span>
         <div className="flex items-center gap-1">
@@ -60,8 +59,6 @@ const AssetCard = ({ asset, className }: { asset: AssetCardData | undefined; cla
         <dd>{fmt(asset.reorderPoint)}</dd>
         <dt className="text-muted-foreground">dueAt</dt>
         <dd>{fmt(asset.dueAt, (d) => (d as Date).toLocaleString())}</dd>
-        <dt className="text-muted-foreground">intervalDays</dt>
-        <dd>{fmt(asset.intervalDays)}</dd>
         <dt className="text-muted-foreground">lastDoneAt</dt>
         <dd>{fmt(asset.lastDoneAt, (d) => (d as Date).toLocaleString())}</dd>
         <dt className="text-muted-foreground">nextDueAt</dt>

@@ -22,9 +22,12 @@ const HistoryPage = async () => {
 	const actions = await getActionsForHistory();
 
 	return (
-		<div className="container mx-auto max-w-2xl py-8">
-			<h1 className="mb-6 text-2xl font-semibold">历史记录</h1>
-			<ul className="space-y-3">
+		<div className="flex min-h-0 flex-1 flex-col">
+			<div className="container mx-auto max-w-2xl shrink-0 px-4 py-8">
+				<h1 className="mb-6 text-2xl font-semibold">历史记录</h1>
+			</div>
+			<div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+				<ul className="container mx-auto max-w-2xl space-y-3 px-4 pb-8">
 				{actions.length === 0 ? (
 					<li className="rounded-lg border bg-card px-4 py-6 text-center text-muted-foreground">
 						暂无记录
@@ -52,7 +55,8 @@ const HistoryPage = async () => {
 						);
 					})
 				)}
-			</ul>
+				</ul>
+			</div>
 		</div>
 	);
 };

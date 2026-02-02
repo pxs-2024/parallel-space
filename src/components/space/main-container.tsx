@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import React, { useCallback, useEffect, useRef } from "react";
 import { ClientOnly } from "./client-only";
-import { useListenSpace } from "./hooks/use-listen-space";
 import { Viewport } from "./types";
 import { clamp } from "./utils/clamp";
 
@@ -14,6 +13,8 @@ type DragSpaceProps = {
 	viewport: Viewport;
 	onViewportChange: (vp: Viewport) => void;
 	onContextMenu?: (e: React.MouseEvent) => void;
+	/** 按住空格时为 true，此时仅允许平移背景，与拖拽物体互斥 */
+	spaceDown: boolean;
 	className?: string;
 };
 
@@ -23,6 +24,7 @@ const MainContainer = ({
 	viewport: vp,
 	onViewportChange: setVp,
 	onContextMenu,
+	spaceDown,
 	className,
 }: DragSpaceProps) => {
 	const containerRef = useRef<HTMLDivElement | null>(null);
@@ -35,7 +37,6 @@ const MainContainer = ({
 		})
 	);
 	
-	const { spaceDown } = useListenSpace();
 	const panRef = useRef<{
 		startClientX: number; // 开始平移时鼠标X坐标
 		startClientY: number; // 开始平移时鼠标Y坐标
@@ -57,29 +58,21 @@ const MainContainer = ({
 		(e: React.WheelEvent) => {
 			const el = containerRef.current;
 			if (!el) return;
-			// 获取容器的边界信息
-			// todo
 			const rect = el.getBoundingClientRect();
 			if (!rect) return;
 
-			const mx = e.clientX - rect.left; // 鼠标在容器内的X坐标
-			const my = e.clientY - rect.top; // 鼠标在容器内的Y坐标
+			const mx = e.clientX - rect.left;
+			const my = e.clientY - rect.top;
 
-			// 缩放强度系数
 			const zoomIntensity = 0.0015;
-			// 计算新的缩放比例，使用指数函数实现平滑缩放
 			const nextScale = clamp(vp.scale * Math.exp(-e.deltaY * zoomIntensity), 0.25, 4);
 
-			// 保持鼠标下的世界坐标点稳定
-			// 将屏幕坐标转换为世界坐标
 			const wx = (mx - vp.vx) / vp.scale;
 			const wy = (my - vp.vy) / vp.scale;
 
-			// 计算新的平移值，使鼠标下的点保持在相同位置
 			const nextVx = mx - wx * nextScale;
 			const nextVy = my - wy * nextScale;
 
-			// 更新视口状态
 			setVp({ vx: nextVx, vy: nextVy, scale: nextScale });
 		},
 		[vp.scale, vp.vx, vp.vy, setVp]
@@ -113,19 +106,14 @@ const MainContainer = ({
 		(e: React.MouseEvent) => {
 			if (!panRef.current) return;
 
-			// 计算鼠标移动的距离
 			const dx = e.clientX - panRef.current.startClientX;
 			const dy = e.clientY - panRef.current.startClientY;
-
-			// 使用最新的vp值进行计算，避免闭包问题
 			const currentVp = vpRef.current;
 
-			// 更新视口的平移值
-			setVp({
-				...currentVp,
-				vx: panRef.current.startTx + dx,
-				vy: panRef.current.startTy + dy,
-			});
+			const nextVx = panRef.current.startTx + dx;
+			const nextVy = panRef.current.startTy + dy;
+
+			setVp({ ...currentVp, vx: nextVx, vy: nextVy });
 		},
 		[setVp]
 	);
@@ -159,13 +147,11 @@ const MainContainer = ({
 			onMouseLeave={endPan}
 			onContextMenu={onContextMenu}
 			className={cn(
-				"h-full w-full border border-black/15 relative overflow-hidden select-none",
+				"drag-space-grid h-full w-full rounded-xl border border-border/50 bg-background/30 relative overflow-hidden select-none",
 				spaceDown ? "cursor-grab" : "cursor-default",
 				className
 			)}
 			style={{
-				background:
-					"linear-gradient(to right, rgba(0,0,0,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.06) 1px, transparent 1px)",
 				backgroundSize: `${40 * vp.scale}px ${40 * vp.scale}px`,
 				backgroundPosition: `${vp.vx}px ${vp.vy}px`,
 			}}

@@ -48,10 +48,6 @@ const createAssetSchema = z.object({
 		.string()
 		.optional()
 		.transform((val) => (val && val.trim() ? new Date(val) : undefined)),
-	intervalDays: z
-		.union([z.coerce.number().int().positive(), z.literal("")])
-		.optional()
-		.transform((val) => (val === "" ? undefined : val)),
 	// 虚拟型
 	refUrl: z
 		.string()
@@ -117,14 +113,8 @@ export async function createAsset(
 
 		// 时间型字段
 		if (data.kind === AssetKind.TEMPORAL) {
-			if (data.dueAt) assetData.dueAt = data.dueAt;
-			if (data.intervalDays !== undefined) assetData.intervalDays = data.intervalDays;
-			// 如果有 intervalDays，计算 nextDueAt
-			if (data.intervalDays) {
-				const now = new Date();
-				now.setDate(now.getDate() + data.intervalDays);
-				assetData.nextDueAt = now;
-			} else if (data.dueAt) {
+			if (data.dueAt) {
+				assetData.dueAt = data.dueAt;
 				assetData.nextDueAt = data.dueAt;
 			}
 		}

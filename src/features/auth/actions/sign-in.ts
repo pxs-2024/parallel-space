@@ -4,7 +4,7 @@ import { verify } from "@node-rs/argon2";
 import { redirect } from "next/navigation";
 import { getLocale } from "next-intl/server";
 import { z } from "zod";
-import { decisionsPath } from "@/paths";
+import { todoPath } from "@/paths";
 import {
 	ActionState,
 	fromErrorToActionState,
@@ -38,5 +38,5 @@ export const signIn = async (_actionState: ActionState, formData: FormData) => {
 		return fromErrorToActionState(error, formData);
 	}
 	const locale = await getLocale();
-	redirect(`/${locale}${decisionsPath()}`);
+	redirect(`/${locale}${todoPath()}`);
 };

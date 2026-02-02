@@ -6,7 +6,7 @@
  *
  * 性能：30fps、标签页不可见时暂停、resize 防抖；低端设备可增大 gap（如 18～20）减少粒子数。
  */
-import * as React from "react";
+import { useRef, useCallback, useEffect } from "react";
 import { useTheme } from "next-themes";
 
 type PixelBgConfig = {
@@ -169,16 +169,16 @@ export function PixelCanvasBackground({
 	className,
 }: PixelCanvasBackgroundProps) {
 	const { resolvedTheme } = useTheme();
-	const canvasRef = React.useRef<HTMLCanvasElement>(null);
-	const pixelsRef = React.useRef<PixelBg[]>([]);
-	const animationRef = React.useRef<number>(0);
-	const timePreviousRef = React.useRef(performance.now());
-	const reducedMotionRef = React.useRef(
+	const canvasRef = useRef<HTMLCanvasElement>(null);
+	const pixelsRef = useRef<PixelBg[]>([]);
+	const animationRef = useRef<number>(0);
+	const timePreviousRef = useRef(performance.now());
+	const reducedMotionRef = useRef(
 		typeof window !== "undefined" &&
 			window.matchMedia("(prefers-reduced-motion: reduce)").matches
 	);
 
-	const init = React.useCallback(() => {
+	const init = useCallback(() => {
 		const canvas = canvasRef.current;
 		if (!canvas) return;
 
@@ -223,7 +223,7 @@ export function PixelCanvasBackground({
 
 	// 主题切换或窗口 resize 时重新初始化；主题切换后延迟 50ms 再 init，确保 next-themes 已更新 DOM
 	// resize 防抖：停止改变窗口大小后 RESIZE_DEBOUNCE_MS 才执行 init，避免拖拽时频繁重算粒子
-	React.useEffect(() => {
+	useEffect(() => {
 		const initTimer = setTimeout(init, 50);
 		let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 		const onResize = () => {
@@ -242,7 +242,7 @@ export function PixelCanvasBackground({
 	}, [init, resolvedTheme]);
 
 	// 30fps 足够背景闪烁观感；每帧从 ref 读取当前粒子数组，主题切换 re-init 后立即生效
-	React.useEffect(() => {
+	useEffect(() => {
 		const canvas = canvasRef.current;
 		const ctx = canvas?.getContext("2d");
 		if (!canvas || !ctx) return;

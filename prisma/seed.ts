@@ -126,7 +126,6 @@ const assetTemplates = {
 		{
 			name: "滤芯",
 			description: "净水器滤芯",
-			intervalDays: 90,
 			lastDoneAt: null,
 			nextDueAt: null,
 			x: 90,
@@ -135,7 +134,6 @@ const assetTemplates = {
 		{
 			name: "空调清洗",
 			description: "年度清洗",
-			intervalDays: 365,
 			lastDoneAt: null,
 			nextDueAt: null,
 			x: 70,
@@ -242,7 +240,6 @@ const seed = async () => {
 				kind: AssetKind.TEMPORAL,
 				state: AssetState.ACTIVE,
 				isDeleted: false,
-				intervalDays: t.intervalDays,
 				lastDoneAt: t.lastDoneAt ?? past(100),
 				nextDueAt: nextDue,
 				x: (t as { x?: number }).x ?? 0,

@@ -51,15 +51,16 @@ export async function snoozeAction(
   ]);
 
   const locale = await getLocale();
-  revalidatePath(`/${locale}/decisions`);
+  revalidatePath(`/${locale}/todo`);
 
   return { ok: true };
 }
 
-/** 用户选择“补充/完成”：RESTOCK 需传入补充数量并更新资产，REMIND/DISCARD 仅标记 DONE，并清除 asset.openPromptActionId、恢复状态 */
+/** 用户选择“补充/完成”：RESTOCK 需传入补充数量并更新资产，REMIND 需传入新的到期时间并更新 asset.nextDueAt，DISCARD 仅标记 DONE */
 export async function completeAction(
   actionId: string,
-  restockAmount?: number
+  restockAmount?: number,
+  nextDueAt?: string
 ): Promise<{ ok: boolean; error?: string }> {
   const auth = await getAuth();
   if (!auth) return { ok: false, error: "未登录" };
@@ -118,26 +119,32 @@ export async function completeAction(
         data: { status: "DISCARDED" },
       }),
     ]);
-  } else {
-    // REMIND：仅标记 DONE，并清除 asset.openPromptActionId
+  } else if (action.type === "REMIND" && action.assetId) {
+    // REMIND：可选传入新到期时间，更新 asset.nextDueAt 后标记 DONE
+    const dueDate = nextDueAt ? new Date(nextDueAt) : null;
+    if (!dueDate || Number.isNaN(dueDate.getTime())) {
+      return { ok: false, error: "请选择到期时间" };
+    }
     await prisma.$transaction([
-      ...(action.assetId
-        ? [
-            prisma.asset.update({
-              where: { id: action.assetId },
-              data: { openPromptActionId: null },
-            }),
-          ]
-        : []),
+      prisma.asset.update({
+        where: { id: action.assetId },
+        data: { nextDueAt: dueDate, openPromptActionId: null },
+      }),
       prisma.action.update({
         where: { id: actionId },
         data: { status: "DONE" },
       }),
     ]);
+  } else {
+    // REMIND 无 asset 等兜底
+    await prisma.action.update({
+      where: { id: actionId },
+      data: { status: "DONE" },
+    });
   }
 
   const locale = await getLocale();
-  revalidatePath(`/${locale}/decisions`);
+  revalidatePath(`/${locale}/todo`);
 
   return { ok: true };
 }
