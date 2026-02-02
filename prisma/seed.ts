@@ -1,5 +1,7 @@
 import "dotenv/config";
 
+import { Pool } from "pg";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "@node-rs/argon2";
 import {
 	Prisma,
@@ -10,7 +12,11 @@ import {
 	ActionStatus,
 } from "@/generated/prisma/client";
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL is not set");
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 const users = [
 	{ username: "admin", email: "2829791064@qq.com" },
@@ -412,4 +418,9 @@ const seed = async () => {
 	console.log(`  Users: ${createdUsers.length}, Spaces: ${createdSpaces.length}, Assets: ${assetsBySpace.length}, Actions: ${actionRows.length}`);
 };
 
-seed();
+seed()
+	.then(() => pool.end())
+	.catch((e) => {
+		console.error(e);
+		process.exit(1);
+	});
