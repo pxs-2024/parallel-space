@@ -5,8 +5,10 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider      = "prisma-client"
+  output        = "../src/generated/prisma"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  engineType    = "client"
 }
 
 datasource db {
@@ -46,7 +48,7 @@ model Space {
   user   User   @relation(fields: [userId], references: [id])
   userId String
 
-  assets Asset[]
+  assets  Asset[]
   actions Action[]
 
   @@index([userId])
@@ -62,17 +64,17 @@ enum AssetKind {
 
 enum AssetState {
   ACTIVE
-  PENDING_RESTOCK  // 待补充：数量到达临界值
-  PENDING_DISCARD  // 待废弃：数量为 0
+  PENDING_RESTOCK // 待补充：数量到达临界值
+  PENDING_DISCARD // 待废弃：数量为 0
   ARCHIVED
   DISCARDED
 }
 
 model Asset {
-  id          String @id @default(cuid())
+  id String @id @default(cuid())
 
-  spaceId     String
-  space       Space  @relation(fields: [spaceId], references: [id])
+  spaceId String
+  space   Space  @relation(fields: [spaceId], references: [id])
 
   name        String
   description String?
@@ -80,34 +82,34 @@ model Asset {
   state       AssetState @default(ACTIVE)
   isDeleted   Boolean    @default(false)
 
-  x           Float?
-  y           Float?
+  x Float?
+  y Float?
 
   // 消耗型
-  quantity      Int? // 物品数量
-  unit          String? // 单位
-  reorderPoint  Int? // 数量减到时触发提醒
-  consumeIntervalDays Int? // 消耗周期：每隔多少天消耗一次
+  quantity             Int? // 物品数量
+  unit                 String? // 单位
+  reorderPoint         Int? // 数量减到时触发提醒
+  consumeIntervalDays  Int? // 消耗周期：每隔多少天消耗一次
   consumeAmountPerTime Int? // 每次消耗数量
 
   // 时间型
-  dueAt         DateTime? // 过期时间 （过期性物品）
-  lastDoneAt    DateTime? // 上次改动时间
-  nextDueAt     DateTime? // 下次到期时间
+  dueAt      DateTime? // 过期时间 （过期性物品）
+  lastDoneAt DateTime? // 上次改动时间
+  nextDueAt  DateTime? // 下次到期时间
 
   // 虚拟型
-  refUrl        String?
-  expiresAt     DateTime?
+  refUrl    String?
+  expiresAt DateTime?
 
   // 忽略/提示：snoozeUntil 前不产生新的 RESTOCK/REMIND；有未处理提示时不重复产生
   snoozeUntil        DateTime?
   openPromptActionId String?   @unique // 当前未处理的提示 action id，非空时不产生新提示
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  actions           Action[]
-  openPromptAction  Action?   @relation("AssetOpenPromptAction", fields: [openPromptActionId], references: [id])
+  actions          Action[]
+  openPromptAction Action?  @relation("AssetOpenPromptAction", fields: [openPromptActionId], references: [id])
 
   @@index([spaceId])
   @@index([spaceId, isDeleted])
@@ -119,7 +121,7 @@ enum ActionType {
   AUTO_CONSUME
   RESTOCK
   REMIND
-  DISCARD   // 丢弃：数量为 0 时触发
+  DISCARD // 丢弃：数量为 0 时触发
 }
 
 enum ActionStatus {
@@ -130,29 +132,29 @@ enum ActionStatus {
 }
 
 model Action {
-  id        String @id @default(cuid())
+  id String @id @default(cuid())
 
-  spaceId   String
-  space     Space  @relation(fields: [spaceId], references: [id])
+  spaceId String
+  space   Space  @relation(fields: [spaceId], references: [id])
 
-  assetId   String?
-  asset     Asset? @relation(fields: [assetId], references: [id])
+  assetId String?
+  asset   Asset?  @relation(fields: [assetId], references: [id])
 
-  type      ActionType
-  status    ActionStatus @default(OPEN)
+  type   ActionType
+  status ActionStatus @default(OPEN)
 
-  dueAt     DateTime?
-  key       String?
+  dueAt DateTime?
+  key   String?
 
-  payload   Json?
+  payload Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   assetAsOpenPrompt Asset? @relation("AssetOpenPromptAction")
 
+  @@unique([key])
   @@index([spaceId, status, dueAt])
   @@index([assetId, status, dueAt])
   @@index([type, status, dueAt])
-  @@unique([key])
 }
