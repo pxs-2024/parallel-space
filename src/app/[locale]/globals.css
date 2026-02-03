@@ -49,7 +49,6 @@
 	--animate-fade-in-from-top: fade-in-from-top 0.5s ease-out;
 	--animate-header-from-top: header-from-top 0.5s ease-out;
 	--animate-sidebar-from-left: sidebar-from-left 0.5s ease-out;
-
 	@keyframes header-from-top {
 		from {
 			transform: translateY(-100%);
@@ -147,6 +146,26 @@
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(1 0 0 / 10%);
 	--sidebar-ring: oklch(0.38 0.189 293.745);
+}
+
+/* 登录/注册页左上角描述动画（全局 keyframes，确保生效） */
+@keyframes auth-hero-line {
+	from {
+		opacity: 0;
+		transform: translateX(-24px) translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0) translateY(0);
+	}
+}
+@keyframes auth-hero-shine {
+	0%, 100% {
+		background-position: 100% 50%;
+	}
+	50% {
+		background-position: 0% 50%;
+	}
 }
 
 @layer base {

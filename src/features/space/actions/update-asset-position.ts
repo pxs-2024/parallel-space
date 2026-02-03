@@ -2,14 +2,13 @@
 
 import { prisma } from "@/lib/prisma";
 
-/** 更新物品的位置 */
+/** 单次更新一个物品的位置（保留供单点调用） */
 export async function updateAssetPosition(
 	spaceId: string,
 	assetId: string,
 	x: number,
 	y: number
 ) {
-	// 检查物品是否存在且属于该空间
 	const asset = await prisma.asset.findFirst({
 		where: {
 			id: assetId,
@@ -20,9 +19,31 @@ export async function updateAssetPosition(
 	});
 	if (!asset) return;
 
-	// 更新位置
 	await prisma.asset.update({
 		where: { id: assetId },
 		data: { x, y },
 	});
+}
+
+export type AssetPositionUpdate = { assetId: string; x: number; y: number };
+
+/** 批量更新当前空间内物品位置，一次请求完成 */
+export async function updateAssetPositions(
+	spaceId: string,
+	updates: AssetPositionUpdate[]
+) {
+	if (updates.length === 0) return;
+
+	await prisma.$transaction(
+		updates.map(({ assetId, x, y }) =>
+			prisma.asset.updateMany({
+				where: {
+					id: assetId,
+					spaceId,
+					isDeleted: false,
+				},
+				data: { x, y },
+			})
+		)
+	);
 }

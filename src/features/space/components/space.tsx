@@ -18,7 +18,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Prisma } from "@/generated/prisma/client";
-import { updateAssetPosition } from "@/features/space/actions/update-asset-position";
+import { updateAssetPositions } from "@/features/space/actions/update-asset-position";
 import { deleteAsset } from "@/features/space/actions/delete-asset";
 import { SpaceContextMenu, type SpaceMenuContext } from "@/features/space/components/space-context-menu";
 import { CreateAssetDialog } from "@/features/space/components/create-asset-drawer";
@@ -187,11 +187,12 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 	);
 
 	const handleSavePositions = useCallback(async () => {
-		for (const asset of assets) {
-			const x = asset.x ?? 0;
-			const y = asset.y ?? 0;
-			await updateAssetPosition(spaceId, asset.id, x, y);
-		}
+		const updates = assets.map((asset) => ({
+			assetId: asset.id,
+			x: asset.x ?? 0,
+			y: asset.y ?? 0,
+		}));
+		await updateAssetPositions(spaceId, updates);
 		setIsEditMode(false);
 		router.refresh();
 	}, [assets, spaceId, router]);

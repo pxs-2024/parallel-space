@@ -4,6 +4,8 @@
     "actions": "行为"
   },
   "auth": {
+    "siteTagline": "平行空间",
+    "siteDescription": "规则驱动的个人资产管理，在需要时提醒你。",
     "signIn": "登录",
     "signInDescription": "登录您的账户",
     "signUp": "注册",

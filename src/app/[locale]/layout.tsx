@@ -50,7 +50,8 @@ export default async function RootLayout({
 	// 设置请求的 locale，这样 getRequestConfig 中的 requestLocale 就能正确获取
 	setRequestLocale(locale);
 	
-	const messages = await getMessages();
+	const messages = await getMessages({locale});
+
 	return (
 		<html lang={locale} suppressHydrationWarning>
 			<body className={`${geistSans.variable} ${geistMono.variable} ${geelyDesign.variable} antialiased flex h-screen flex-col overflow-hidden bg-transparent`}>

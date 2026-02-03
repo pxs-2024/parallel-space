@@ -4,6 +4,8 @@
     "actions": "Actions"
   },
   "auth": {
+    "siteTagline": "Parallel Space",
+    "siteDescription": "Rule-driven asset management. Your stuff, your decisions.",
     "signIn": "Sign In",
     "signInDescription": "Sign in your account",
     "signUp": "Sign Up",
