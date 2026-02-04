@@ -8,23 +8,17 @@ import { Viewport } from "@/components/space/types";
 import { AssetCard } from "@/components/assets/assets-card";
 import { AssetCardHorizontal } from "@/components/assets/asset-card-horizontal";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useListenSpace } from "@/components/space/hooks/use-listen-space";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { Prisma } from "@/generated/prisma/client";
 import { updateAssetPositions } from "@/features/space/actions/update-asset-position";
 import { deleteAsset } from "@/features/space/actions/delete-asset";
 import { SpaceContextMenu, type SpaceMenuContext } from "@/features/space/components/space-context-menu";
 import { CreateAssetDialog } from "@/features/space/components/create-asset-drawer";
-import { LayoutGrid, List, Search, Move, Save } from "lucide-react";
+import { ListFiltersBar } from "@/features/space/components/list-filters-bar";
+import { LayoutGrid, List, Move, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useQueryStates, parseAsString, parseAsStringLiteral } from "nuqs";
+import { useQueryStates } from "nuqs";
+import { listSearchParsers, listSearchOptions } from "@/features/space/search-params";
 
 type QueryAsset = Prisma.AssetGetPayload<{
 	select: {
@@ -48,17 +42,6 @@ type QueryAsset = Prisma.AssetGetPayload<{
 	};
 }>;
 
-const LIST_SORT_FIELDS = ["name", "kind", "state", "quantity", "createdAt"] as const;
-const LIST_ORDER = ["asc", "desc"] as const;
-
-const listSearchParsers = {
-	q: parseAsString.withDefault(""),
-	kind: parseAsString.withDefault(""),
-	state: parseAsString.withDefault(""),
-	sort: parseAsStringLiteral(LIST_SORT_FIELDS).withDefault("createdAt"),
-	order: parseAsStringLiteral(LIST_ORDER).withDefault("desc"),
-};
-
 type SpaceProps = {
 	spaceId: string;
 	initialAssets: QueryAsset[];
@@ -79,7 +62,7 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 	const [focusAssetId, setFocusAssetId] = useState<string | null>(null);
 	const contentWrapperRef = useRef<HTMLDivElement>(null);
 
-	const [listQuery, setListQuery] = useQueryStates(listSearchParsers, { shallow: false });
+	const [listQuery] = useQueryStates(listSearchParsers, listSearchOptions);
 
 	const listItems = useMemo(() => {
 		const q = listQuery.q.trim().toLowerCase();
@@ -117,7 +100,7 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 			return order === "asc" ? cmp : -cmp;
 		});
 		return result;
-	}, [assets, listQuery.q, listQuery.kind, listQuery.state, listQuery.sort, listQuery.order]);
+	}, [assets, listQuery]);
 
 	useEffect(() => {
 		setAssets(initialAssets);
@@ -363,78 +346,13 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 						</MainContainer>
 					) : (
 						<div className="flex h-full flex-col">
-							<div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-black/10 px-4 py-3">
-								<div className="relative min-w-48 max-w-sm flex-1">
-									<Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-									<Input
-										placeholder="搜索名称或描述..."
-										value={listQuery.q}
-										onChange={(e) => setListQuery({ q: e.target.value })}
-										className="pl-8"
-									/>
-								</div>
-								<Select
-									value={listQuery.kind || "__all__"}
-									onValueChange={(v) => setListQuery({ kind: v === "__all__" ? "" : v })}
-								>
-									<SelectTrigger className="w-28">
-										<SelectValue placeholder="种类" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="__all__">全部种类</SelectItem>
-										<SelectItem value="STATIC">静态</SelectItem>
-										<SelectItem value="CONSUMABLE">消耗型</SelectItem>
-										<SelectItem value="TEMPORAL">时间型</SelectItem>
-										<SelectItem value="VIRTUAL">虚拟型</SelectItem>
-									</SelectContent>
-								</Select>
-								<Select
-									value={listQuery.state || "__all__"}
-									onValueChange={(v) => setListQuery({ state: v === "__all__" ? "" : v })}
-								>
-									<SelectTrigger className="w-28">
-										<SelectValue placeholder="状态" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="__all__">全部状态</SelectItem>
-										<SelectItem value="ACTIVE">在用</SelectItem>
-										<SelectItem value="PENDING_RESTOCK">待补充</SelectItem>
-										<SelectItem value="PENDING_DISCARD">待废弃</SelectItem>
-										<SelectItem value="ARCHIVED">已归档</SelectItem>
-										<SelectItem value="DISCARDED">已废弃</SelectItem>
-									</SelectContent>
-								</Select>
-								<Select
-									value={listQuery.sort}
-									onValueChange={(v) => setListQuery({ sort: v as (typeof LIST_SORT_FIELDS)[number] })}
-								>
-									<SelectTrigger className="w-28">
-										<SelectValue placeholder="排序" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="createdAt">创建时间</SelectItem>
-										<SelectItem value="name">名称</SelectItem>
-										<SelectItem value="kind">种类</SelectItem>
-										<SelectItem value="state">状态</SelectItem>
-										<SelectItem value="quantity">数量</SelectItem>
-									</SelectContent>
-								</Select>
-								<Select
-									value={listQuery.order}
-									onValueChange={(v) => setListQuery({ order: v as (typeof LIST_ORDER)[number] })}
-								>
-									<SelectTrigger className="w-24">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="asc">升序</SelectItem>
-										<SelectItem value="desc">降序</SelectItem>
-									</SelectContent>
-								</Select>
-								<span className="text-muted-foreground text-sm">
-									{listItems.length} / {assets.length}
-								</span>
-							</div>
+							<ListFiltersBar
+								countSlot={
+									<span className="text-muted-foreground text-sm">
+										{listItems.length} / {assets.length}
+									</span>
+								}
+							/>
 							<div
 								className="scrollbar-hide min-h-0 flex-1 overflow-auto p-4"
 								onContextMenu={handleRootContextMenu}

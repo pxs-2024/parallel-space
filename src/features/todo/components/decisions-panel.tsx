@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Search } from "lucide-react";
+import { useRouter } from "@/i18n/navigation";
 import { useQueryStates, parseAsString, parseAsStringLiteral } from "nuqs";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
 	Select,
 	SelectContent,
@@ -17,6 +19,7 @@ import {
 	getDecisionItemKey,
 	type DecisionItem,
 } from "@/features/todo/components/decision-card";
+import { snoozeActions } from "@/features/todo/actions/respond-to-action";
 
 const DECISION_TYPE_OPTIONS = ["all", "RESTOCK", "REMIND", "DISCARD"] as const;
 const DECISION_TIME_OPTIONS = ["all", "overdue", "week", "month"] as const;
@@ -49,9 +52,12 @@ type DecisionsPanelProps = {
 };
 
 export function DecisionsPanel({ pending }: DecisionsPanelProps) {
+	const router = useRouter();
 	const [items, setItems] = useState<DecisionItem[]>(() => toItems(pending));
 	const [query, setQuery] = useQueryStates(decisionQueryParsers, { shallow: false });
 	const [searchInput, setSearchInput] = useState(query.q);
+	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+	const [batchBusy, setBatchBusy] = useState(false);
 	const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	useEffect(() => {
@@ -87,21 +93,6 @@ export function DecisionsPanel({ pending }: DecisionsPanelProps) {
 		}
 	}, [query.time]);
 
-	const handleRemoving = useCallback((key: string) => {
-		const remove = () =>
-			setItems((prev) => prev.filter((i) => getDecisionItemKey(i) !== key));
-
-		setTimeout(() => {
-			const doc = typeof document !== "undefined" ? document : null;
-			const startVT = doc && "startViewTransition" in doc ? (doc as { startViewTransition: (cb: () => void) => void }).startViewTransition : null;
-			if (startVT) {
-				startVT.call(doc, remove);
-			} else {
-				remove();
-			}
-		}, 280);
-	}, []);
-
 	const filteredItems = useMemo(() => {
 		let result = items;
 		const q = query.q.trim().toLowerCase();
@@ -128,6 +119,68 @@ export function DecisionsPanel({ pending }: DecisionsPanelProps) {
 		}
 		return result;
 	}, [items, query.q, query.type, query.time, now]);
+
+	const handleRemoving = useCallback((key: string) => {
+		const remove = () =>
+			setItems((prev) => prev.filter((i) => getDecisionItemKey(i) !== key));
+
+		setTimeout(() => {
+			const doc = typeof document !== "undefined" ? document : null;
+			const startVT = doc && "startViewTransition" in doc ? (doc as { startViewTransition: (cb: () => void) => void }).startViewTransition : null;
+			if (startVT) {
+				startVT.call(doc, remove);
+			} else {
+				remove();
+			}
+		}, 280);
+	}, []);
+
+	const toggleSelect = useCallback((id: string) => {
+		setSelectedIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
+	}, []);
+
+	const allFilteredSelected =
+		filteredItems.length > 0 &&
+		filteredItems.every((i) => selectedIds.has(i.data.id));
+
+	const toggleSelectAll = useCallback(() => {
+		if (allFilteredSelected) {
+			setSelectedIds(new Set());
+		} else {
+			setSelectedIds(new Set(filteredItems.map((i) => i.data.id)));
+		}
+	}, [filteredItems, allFilteredSelected]);
+
+	const handleBatchIgnore = useCallback(async () => {
+		if (selectedIds.size === 0) return;
+		setBatchBusy(true);
+		try {
+			const res = await snoozeActions(Array.from(selectedIds), "ignore_day");
+			if (res.ok && res.count) {
+				const doc = typeof document !== "undefined" ? document : null;
+				const startVT = doc && "startViewTransition" in doc ? (doc as { startViewTransition: (cb: () => void) => void }).startViewTransition : null;
+				const removeAll = () => {
+					setItems((prev) =>
+						prev.filter((i) => !selectedIds.has(i.data.id))
+					);
+					setSelectedIds(new Set());
+				};
+				if (startVT) {
+					startVT.call(doc, removeAll);
+				} else {
+					removeAll();
+				}
+				setTimeout(() => router.refresh(), 280);
+			}
+		} finally {
+			setBatchBusy(false);
+		}
+	}, [selectedIds, router]);
 
 	const isEmpty = items.length === 0;
 	const hasNoResults = !isEmpty && filteredItems.length === 0;
@@ -183,23 +236,56 @@ export function DecisionsPanel({ pending }: DecisionsPanelProps) {
 					暂无符合条件项
 				</div>
 			) : (
-				<div className="scrollbar-hide flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2">
-					{filteredItems.map((item) => {
-						const key = getDecisionItemKey(item);
-						const safeName = `card-${key.replace(/[^a-zA-Z0-9-]/g, "-")}`;
-						return (
-							<div
-								key={key}
-								className="min-w-0 transition-[margin] duration-300 ease-out"
-								style={{
-									viewTransitionName: safeName,
-								} as React.CSSProperties}
-							>
-								<DecisionCard item={item} onRemoving={handleRemoving} />
-							</div>
-						);
-					})}
-				</div>
+				<>
+					<div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-black/10 pb-3">
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={toggleSelectAll}
+						>
+							{allFilteredSelected ? "取消全选" : "全选当前页"}
+						</Button>
+						<Button
+							type="button"
+							variant="secondary"
+							size="sm"
+							onClick={handleBatchIgnore}
+							disabled={selectedIds.size === 0 || batchBusy}
+						>
+							{batchBusy ? "处理中…" : `批量忽略（今日）${selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}`}
+						</Button>
+					</div>
+					<div className="scrollbar-hide flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-2">
+						{filteredItems.map((item) => {
+							const key = getDecisionItemKey(item);
+							const safeName = `card-${key.replace(/[^a-zA-Z0-9-]/g, "-")}`;
+							const checked = selectedIds.has(item.data.id);
+							return (
+								<div
+									key={key}
+									className="flex min-w-0 items-start gap-3 transition-[margin] duration-300 ease-out"
+									style={{
+										viewTransitionName: safeName,
+									} as React.CSSProperties}
+								>
+									<label className="flex shrink-0 items-center gap-2 pt-4">
+										<input
+											type="checkbox"
+											checked={checked}
+											onChange={() => toggleSelect(item.data.id)}
+											className="size-4 rounded border-input"
+											aria-label={`选择 ${item.data.assetName}`}
+										/>
+									</label>
+									<div className="min-w-0 flex-1">
+										<DecisionCard item={item} onRemoving={handleRemoving} />
+									</div>
+								</div>
+							);
+						})}
+					</div>
+				</>
 			)}
 		</div>
 	);

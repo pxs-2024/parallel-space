@@ -5,6 +5,7 @@ const HISTORY_PAGE_SIZE = 100;
 
 /**
  * 历史记录：仅包含「自动消耗」与「用户已操作」的 action，不包含仍为 OPEN 的待办。
+ * 不展示「待补充」(RESTOCK) 类记录，仅展示自动消耗、提醒、丢弃。
  */
 export const getActionsForHistory = async () => {
 	const auth = await getAuth();
@@ -16,7 +17,7 @@ export const getActionsForHistory = async () => {
 			OR: [
 				{ type: "AUTO_CONSUME" },
 				{
-					type: { in: ["RESTOCK", "REMIND", "DISCARD"] },
+					type: { in: ["REMIND", "DISCARD"] },
 					status: { not: "OPEN" },
 				},
 			],

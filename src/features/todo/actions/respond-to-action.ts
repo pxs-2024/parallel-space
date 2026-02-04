@@ -56,6 +56,55 @@ export async function snoozeAction(
   return { ok: true };
 }
 
+/** 批量忽略：将多条 action 标记为 SKIPPED，并更新对应 Asset 的 snoozeUntil、清除 openPromptActionId。默认忽略 1 天。 */
+export async function snoozeActions(
+  actionIds: string[],
+  choice: SnoozeChoice = "ignore_day"
+): Promise<{ ok: boolean; count?: number; error?: string }> {
+  const auth = await getAuth();
+  if (!auth) return { ok: false, error: "未登录" };
+  if (!Array.isArray(actionIds) || actionIds.length === 0) {
+    return { ok: true, count: 0 };
+  }
+
+  const days = SNOOZE_DAYS[choice];
+  const snoozeUntil = new Date();
+  snoozeUntil.setDate(snoozeUntil.getDate() + days);
+
+  const actions = await prisma.action.findMany({
+    where: {
+      id: { in: actionIds },
+      space: { userId: auth.user.id },
+      status: "OPEN",
+      type: { in: ["RESTOCK", "REMIND", "DISCARD"] },
+    },
+    select: { id: true, assetId: true },
+  });
+
+  const ids = actions.map((a) => a.id);
+  const assetIds = [...new Set(actions.map((a) => a.assetId).filter(Boolean) as string[])];
+
+  await prisma.$transaction([
+    ...ids.map((id) =>
+      prisma.action.update({
+        where: { id },
+        data: { status: "SKIPPED" },
+      })
+    ),
+    ...assetIds.map((assetId) =>
+      prisma.asset.update({
+        where: { id: assetId },
+        data: { snoozeUntil, openPromptActionId: null },
+      })
+    ),
+  ]);
+
+  const locale = await getLocale();
+  revalidatePath(`/${locale}/todo`);
+
+  return { ok: true, count: ids.length };
+}
+
 /** 用户选择“补充/完成”：RESTOCK 需传入补充数量并更新资产，REMIND 需传入新的到期时间并更新 asset.nextDueAt，DISCARD 仅标记 DONE */
 export async function completeAction(
   actionId: string,
