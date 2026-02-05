@@ -41,6 +41,7 @@ model Space {
   id          String   @id @default(cuid())
   name        String
   description String
+  order       Int      @default(0) // 列表展示顺序，越小越靠前
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -51,6 +52,7 @@ model Space {
   actions Action[]
 
   @@index([userId])
+  @@index([userId, order])
   @@index([createdAt])
 }
 
@@ -83,6 +85,8 @@ model Asset {
 
   x Float?
   y Float?
+  width  Float? // 卡片宽（px），默认 160
+  height Float? // 卡片高（px），默认 160
 
   // 消耗型
   quantity             Int? // 物品数量

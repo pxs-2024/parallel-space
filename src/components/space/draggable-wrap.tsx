@@ -3,10 +3,16 @@
 import { useDraggable } from "@dnd-kit/core";
 import { Position } from "./types";
 
+export type DragHandleProps = {
+	listeners: Record<string, unknown>;
+	attributes: Record<string, unknown>;
+};
+
 type DraggableCardProps = {
 	position: Position;
 	viewportScale: number;
-	children?: React.ReactNode;
+	/** 仅通过把手拖拽位置：传入 (listeners, attributes) 渲染子节点，把手区域需自行绑定 listeners/attributes */
+	children: (dragHandleProps: DragHandleProps) => React.ReactNode;
 	onContextMenu?: (e: React.MouseEvent) => void;
 	/** 为 true 时不可拖拽（与平移背景互斥，或未进入移动模式） */
 	disabled?: boolean;
@@ -28,9 +34,8 @@ const DraggableWrap = ({ position, viewportScale, children, onContextMenu, disab
 
 	return (
 		<div
-			className={"absolute will-change-transform"}
+			className="absolute will-change-transform"
 			ref={setNodeRef}
-			{...(disabled ? {} : { ...listeners, ...attributes })}
 			data-context-menu-handled
 			onContextMenu={onContextMenu}
 			style={{
@@ -40,7 +45,7 @@ const DraggableWrap = ({ position, viewportScale, children, onContextMenu, disab
 				zIndex: isDragging ? 9999 : 1,
 			}}
 		>
-			{children}
+			{children(disabled ? { listeners: {}, attributes: {} } : { listeners, attributes })}
 		</div>
 	);
 };

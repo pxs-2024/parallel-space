@@ -67,9 +67,29 @@ function getKindConfig(kind: AssetKind) {
 
 type AssetCardDragContentProps = {
 	asset: AssetForDrag;
+	/** 仅展示名字（详情在点击后于右上角抽屉显示） */
+	nameOnly?: boolean;
 };
 
-export function AssetCardDragContent({ asset }: AssetCardDragContentProps) {
+export function AssetCardDragContent({ asset, nameOnly = false }: AssetCardDragContentProps) {
+	if (nameOnly) {
+		return (
+			<div className="flex h-full w-full flex-col items-center justify-center gap-2 p-3">
+				<Avatar className="h-12 w-12 shrink-0 ring-2 ring-background/50">
+					<AvatarFallback
+						className="font-geely text-sm font-medium text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.25)]"
+						style={{ background: getAvatarGradient(asset.name) }}
+					>
+						{asset.name.slice(0, 2)}
+					</AvatarFallback>
+				</Avatar>
+				<span className="truncate max-w-full text-center text-sm font-semibold text-foreground">
+					{asset.name}
+				</span>
+			</div>
+		);
+	}
+
 	const [now, setNow] = useState(0);
 	useEffect(() => {
 		setNow(Date.now());
@@ -80,7 +100,6 @@ export function AssetCardDragContent({ asset }: AssetCardDragContentProps) {
 	const config = getKindConfig(asset.kind);
 	const Icon = config.Icon;
 
-	// 消耗型 / 时间型：倒计时文案（已到期时不再拼接「到下次消耗」/「到期」，避免「已到到期」）
 	let countdownLine: { suffix: string; text: string } | null = null;
 	if (asset.kind === "CONSUMABLE" && asset.consumeIntervalDays != null && now > 0) {
 		const base = asset.lastDoneAt ?? asset.createdAt;

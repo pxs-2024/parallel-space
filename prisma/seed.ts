@@ -180,7 +180,7 @@ const seed = async () => {
 	const secondUser = createdUsers[1];
 
 	const createdSpaces = await prisma.space.createManyAndReturn({
-		data: spaces.map((s) => ({ ...s, userId: admin.id })),
+		data: spaces.map((s, index) => ({ ...s, userId: admin.id, order: index })),
 	});
 
 	const baseTime = new Date();
@@ -210,6 +210,8 @@ const seed = async () => {
 				isDeleted: false,
 				x: (t as { x?: number }).x ?? 0,
 				y: (t as { y?: number }).y ?? 0,
+				width: 160,
+				height: 160,
 			});
 		}
 
@@ -232,6 +234,8 @@ const seed = async () => {
 				consumeAmountPerTime: t.consumeAmountPerTime ?? null,
 				x: (t as { x?: number }).x ?? 0,
 				y: (t as { y?: number }).y ?? 0,
+				width: 160,
+				height: 160,
 			});
 		}
 		assetIndex += 4;
@@ -251,6 +255,8 @@ const seed = async () => {
 				nextDueAt: nextDue,
 				x: (t as { x?: number }).x ?? 0,
 				y: (t as { y?: number }).y ?? 0,
+				width: 160,
+				height: 160,
 			});
 		}
 
@@ -267,6 +273,10 @@ const seed = async () => {
 				isDeleted: false,
 				refUrl: t.refUrl,
 				expiresAt: exp,
+				x: 0,
+				y: 0,
+				width: 160,
+				height: 160,
 			});
 		}
 

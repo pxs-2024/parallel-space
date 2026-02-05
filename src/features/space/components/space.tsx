@@ -14,6 +14,7 @@ import { updateAssetPositions } from "@/features/space/actions/update-asset-posi
 import { deleteAsset } from "@/features/space/actions/delete-asset";
 import { SpaceContextMenu, type SpaceMenuContext } from "@/features/space/components/space-context-menu";
 import { CreateAssetDialog } from "@/features/space/components/create-asset-drawer";
+import { AssetDetailDrawer } from "@/components/assets/asset-detail-drawer";
 import { ListFiltersBar } from "@/features/space/components/list-filters-bar";
 import { LayoutGrid, List, Move, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,8 @@ type QueryAsset = Prisma.AssetGetPayload<{
 		description: true;
 		x: true;
 		y: true;
+		width: true;
+		height: true;
 		kind: true;
 		state: true;
 		quantity: true;
@@ -60,6 +63,7 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 	const [viewMode, setViewMode] = useState<"space" | "list">("list");
 	const [isEditMode, setIsEditMode] = useState(false);
 	const [focusAssetId, setFocusAssetId] = useState<string | null>(null);
+	const [selectedAsset, setSelectedAsset] = useState<QueryAsset | null>(null);
 	const contentWrapperRef = useRef<HTMLDivElement>(null);
 
 	const [listQuery] = useQueryStates(listSearchParsers, listSearchOptions);
@@ -174,6 +178,8 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 			assetId: asset.id,
 			x: asset.x ?? 0,
 			y: asset.y ?? 0,
+			width: asset.width ?? undefined,
+			height: asset.height ?? undefined,
 		}));
 		await updateAssetPositions(spaceId, updates);
 		setIsEditMode(false);
@@ -340,7 +346,21 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 									onContextMenu={(e) => handleAssetContextMenu(asset.id, e)}
 									disabled={!isEditMode || spaceDown}
 								>
-									<AssetCard asset={asset} />
+									{(dragHandleProps) => (
+										<AssetCard
+											asset={asset}
+											canResize={isEditMode}
+											dragHandleProps={dragHandleProps}
+											onResizeEnd={(w, h) => {
+												setAssets((prev) =>
+													prev.map((a) =>
+														a.id === asset.id ? { ...a, width: w, height: h } : a
+													)
+												);
+											}}
+											onCardClick={(a) => setSelectedAsset(a)}
+										/>
+									)}
 								</DraggableWrap>
 							))}
 						</MainContainer>
@@ -364,7 +384,11 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 												data-context-menu-handled
 												onContextMenu={(e) => handleAssetContextMenu(asset.id, e)}
 											>
-												<AssetCardHorizontal asset={asset} />
+												<AssetCardHorizontal
+												asset={asset}
+												nameOnly
+												onCardClick={(a) => setSelectedAsset(a)}
+											/>
 											</div>
 										</li>
 									))}
@@ -395,6 +419,10 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 				}}
 				onSuccess={handleAssetCreated}
 				initialPosition={createPosition}
+			/>
+			<AssetDetailDrawer
+				asset={selectedAsset}
+				onClose={() => setSelectedAsset(null)}
 			/>
 		</>
 	)

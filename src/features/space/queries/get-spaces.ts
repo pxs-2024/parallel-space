@@ -13,6 +13,7 @@ export const getSpaces = async () => {
 	const { user } = auth;
 	let spaces = await prisma.space.findMany({
 		where: { userId: user.id },
+		orderBy: [{ order: "asc" }, { createdAt: "asc" }],
 	});
 	if (spaces.length === 0) {
 		await prisma.space.create({
@@ -20,10 +21,12 @@ export const getSpaces = async () => {
 				name: DEFAULT_SPACE_NAME,
 				description: DEFAULT_SPACE_DESCRIPTION,
 				userId: user.id,
+				order: 0,
 			},
 		});
 		spaces = await prisma.space.findMany({
 			where: { userId: user.id },
+			orderBy: [{ order: "asc" }, { createdAt: "asc" }],
 		});
 	}
 	return spaces;

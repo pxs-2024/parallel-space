@@ -18,6 +18,8 @@ export const getAssetsAndContainers = async (spaceId: string) => {
 					description: true,
 					x: true,
 					y: true,
+					width: true,
+					height: true,
 					kind: true,
 					state: true,
 					quantity: true,

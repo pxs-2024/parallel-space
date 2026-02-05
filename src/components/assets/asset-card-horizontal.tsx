@@ -9,25 +9,30 @@ import { Avatar, AvatarFallback } from "../ui/avatar";
 import { getAvatarGradient } from "@/features/space/utils/avatar-gradient";
 import { Prisma } from "@/generated/prisma/client";
 
+type AssetCardHorizontalAsset = Prisma.AssetGetPayload<{
+	select: {
+		id: true;
+		name: true;
+		description: true;
+		kind: true;
+		state: true;
+		quantity: true;
+		unit: true;
+		reorderPoint: true;
+		dueAt: true;
+		lastDoneAt: true;
+		nextDueAt: true;
+		refUrl: true;
+		expiresAt: true;
+	};
+}>;
+
 type AssetCardHorizontalProps = {
-	asset: Prisma.AssetGetPayload<{
-		select: {
-			id: true;
-			name: true;
-			description: true;
-			kind: true;
-			state: true;
-			quantity: true;
-			unit: true;
-			reorderPoint: true;
-			dueAt: true;
-			lastDoneAt: true;
-			nextDueAt: true;
-			refUrl: true;
-			expiresAt: true;
-		};
-	}>;
+	asset: AssetCardHorizontalAsset;
 	className?: string;
+	/** 仅展示名字，详情在点击后于右上角抽屉显示 */
+	nameOnly?: boolean;
+	onCardClick?: (asset: AssetCardHorizontalAsset) => void;
 };
 
 type AssetKind = "STATIC" | "CONSUMABLE" | "TEMPORAL" | "VIRTUAL";
@@ -85,13 +90,40 @@ function formatDue(date: Date | null): string {
 	});
 }
 
-const AssetCardHorizontal = ({ asset, className }: AssetCardHorizontalProps) => {
+const AssetCardHorizontal = ({ asset, className, nameOnly = false, onCardClick }: AssetCardHorizontalProps) => {
 	const hasDescription = asset.description != null && asset.description !== "";
 	const qtyText = [fmt(asset.quantity), fmt(asset.unit)].filter(Boolean).join(" ") || "—";
 	const KindIcon = getKindIcon(asset.kind as AssetKind);
 	const hasDue = asset.nextDueAt ?? asset.dueAt ?? asset.expiresAt;
 	const dueText = formatDue(asset.nextDueAt ?? asset.dueAt ?? asset.expiresAt ?? null);
 	const hasReorder = asset.reorderPoint != null;
+
+	if (nameOnly) {
+		return (
+			<Card
+				role={onCardClick ? "button" : undefined}
+				onClick={onCardClick ? () => onCardClick(asset) : undefined}
+				className={cn(
+					"rounded-xl border border-border bg-card shadow-sm transition-all duration-200",
+					"hover:border-border/80 hover:shadow-md hover:bg-card/95",
+					onCardClick && "cursor-pointer",
+					className
+				)}
+			>
+				<CardContent className="flex flex-row items-center gap-4 p-4">
+					<Avatar className="h-10 w-10 shrink-0 rounded-xl ring-2 ring-border/50">
+						<AvatarFallback
+							className="rounded-xl font-medium text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.2)]"
+							style={{ background: getAvatarGradient(asset.name) }}
+						>
+							{asset.name.slice(0, 2)}
+						</AvatarFallback>
+					</Avatar>
+					<span className="truncate text-sm font-semibold text-foreground">{asset.name}</span>
+				</CardContent>
+			</Card>
+		);
+	}
 
 	return (
 		<Card

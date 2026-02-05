@@ -25,9 +25,15 @@ export async function updateAssetPosition(
 	});
 }
 
-export type AssetPositionUpdate = { assetId: string; x: number; y: number };
+export type AssetPositionUpdate = {
+	assetId: string;
+	x: number;
+	y: number;
+	width?: number;
+	height?: number;
+};
 
-/** 批量更新当前空间内物品位置，一次请求完成 */
+/** 批量更新当前空间内物品位置与尺寸，一次请求完成 */
 export async function updateAssetPositions(
 	spaceId: string,
 	updates: AssetPositionUpdate[]
@@ -35,14 +41,19 @@ export async function updateAssetPositions(
 	if (updates.length === 0) return;
 
 	await prisma.$transaction(
-		updates.map(({ assetId, x, y }) =>
+		updates.map(({ assetId, x, y, width, height }) =>
 			prisma.asset.updateMany({
 				where: {
 					id: assetId,
 					spaceId,
 					isDeleted: false,
 				},
-				data: { x, y },
+				data: {
+					x,
+					y,
+					...(width != null && { width }),
+					...(height != null && { height }),
+				},
 			})
 		)
 	);

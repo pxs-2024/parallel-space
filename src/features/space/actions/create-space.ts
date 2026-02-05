@@ -28,11 +28,19 @@ export async function createSpace(
 
 		const data = createSpaceSchema.parse(Object.fromEntries(formData.entries()));
 
+		const maxOrder = await prisma.space
+			.aggregate({
+				where: { userId: auth.user.id },
+				_max: { order: true },
+			})
+			.then((r) => r._max.order ?? -1);
+
 		await prisma.space.create({
 			data: {
 				name: data.name.trim(),
 				description: (data.description ?? "").trim(),
 				userId: auth.user.id,
+				order: maxOrder + 1,
 			},
 		});
 

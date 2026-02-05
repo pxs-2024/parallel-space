@@ -8,6 +8,24 @@ import { cn } from "@/lib/utils";
 import { spacePath } from "@/paths";
 import { SpaceCard } from "./space-card";
 import { EditSpaceDialog, type SpaceForEdit } from "./edit-space-dialog";
+import {
+	DndContext,
+	DragEndEvent,
+	DragOverlay,
+	PointerSensor,
+	useSensor,
+	useSensors,
+	defaultDropAnimation,
+} from "@dnd-kit/core";
+import {
+	SortableContext,
+	rectSortingStrategy,
+	useSortable,
+	arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { reorderSpaces } from "../actions/reorder-spaces";
+import { SpaceAssetsDrawer } from "./space-assets-drawer";
 
 const menuItemClass =
 	"flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground [&_svg]:shrink-0 [&_svg]:size-4";
@@ -22,8 +40,76 @@ type SpaceListClientProps = {
 	spaces: SpaceItem[];
 };
 
-export function SpaceListClient({ spaces }: SpaceListClientProps) {
+function SortableSpaceItem({
+	space,
+	onContextMenu,
+	onSpaceClick,
+	didDragRef,
+}: {
+	space: SpaceItem;
+	onContextMenu: (e: React.MouseEvent, space: SpaceForEdit) => void;
+	onSpaceClick: (spaceId: string) => void;
+	didDragRef: React.MutableRefObject<boolean>;
+}) {
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id: space.id });
+
+	const style = {
+		transform: CSS.Transform.toString(transform),
+		transition,
+	};
+
+		return (
+		<div
+			ref={setNodeRef}
+			style={style}
+			className={cn(
+				"relative flex cursor-grab items-center justify-center rounded-xl active:cursor-grabbing",
+				"min-w-52 min-h-52 p-3",
+				isDragging && "cursor-grabbing invisible"
+			)}
+			onContextMenu={(e) => onContextMenu(e, space)}
+			{...attributes}
+			{...listeners}
+		>
+			{/* 拖拽中：整项 invisible 占位不绘制，避免原位置多出一块背景；由 DragOverlay 显示预览 */}
+			<Link
+				href={spacePath(space.id)}
+				onClick={(e) => {
+					if (didDragRef.current) {
+						e.preventDefault();
+						didDragRef.current = false;
+						return;
+					}
+					e.preventDefault();
+					onSpaceClick(space.id);
+				}}
+				className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+			>
+				<SpaceCard name={space.name} description={space.description} />
+			</Link>
+		</div>
+	);
+}
+
+export function SpaceListClient({ spaces: initialSpaces }: SpaceListClientProps) {
 	const router = useRouter();
+	const [spaces, setSpaces] = useState<SpaceItem[]>(initialSpaces);
+	const [activeId, setActiveId] = useState<string | null>(null);
+	const [drawerSpaceId, setDrawerSpaceId] = useState<string | null>(null);
+	const didDragRef = useRef(false);
+	const activeSpace = activeId ? spaces.find((s) => s.id === activeId) : null;
+
+	const handleSpaceClick = useCallback((spaceId: string) => {
+		setDrawerSpaceId(spaceId);
+	}, []);
+
 	const [contextMenu, setContextMenu] = useState<{
 		open: boolean;
 		x: number;
@@ -33,6 +119,52 @@ export function SpaceListClient({ spaces }: SpaceListClientProps) {
 	const [editDialogOpen, setEditDialogOpen] = useState(false);
 	const [editingSpace, setEditingSpace] = useState<SpaceForEdit | null>(null);
 	const menuRef = useRef<HTMLDivElement>(null);
+
+	// 服务端数据更新后同步到本地（如新建、编辑后 refresh）
+	useEffect(() => {
+		setSpaces(initialSpaces);
+	}, [initialSpaces]);
+
+	const sensors = useSensors(
+		useSensor(PointerSensor, {
+			activationConstraint: {
+				delay: 400,
+				tolerance: 5,
+			},
+		})
+	);
+
+	const handleDragStart = useCallback((event: { active: { id: string } }) => {
+		didDragRef.current = true;
+		setActiveId(event.active.id);
+	}, []);
+
+	const handleDragEnd = useCallback(
+		async (event: DragEndEvent) => {
+			const { active, over } = event;
+			setActiveId(null);
+			// 拖拽结束后延迟重置，避免松手时的 click 触达 Link 进入详情
+			setTimeout(() => {
+				didDragRef.current = false;
+			}, 150);
+
+			if (!over || active.id === over.id) return;
+
+			const oldIndex = spaces.findIndex((s) => s.id === active.id);
+			const newIndex = spaces.findIndex((s) => s.id === over.id);
+			if (oldIndex === -1 || newIndex === -1) return;
+
+			const nextSpaces = arrayMove(spaces, oldIndex, newIndex);
+			setSpaces(nextSpaces);
+
+			const result = await reorderSpaces(nextSpaces.map((s) => s.id));
+			if (!result.ok) {
+				setSpaces(spaces);
+				router.refresh();
+			}
+		},
+		[spaces, router]
+	);
 
 	const closeMenu = useCallback(() => {
 		setContextMenu((prev) => (prev.open ? { ...prev, open: false, space: null } : prev));
@@ -77,19 +209,42 @@ export function SpaceListClient({ spaces }: SpaceListClientProps) {
 
 	return (
 		<>
-			<div className="flex flex-1 flex-wrap items-start content-start gap-4">
-				{spaces.map((space) => (
-					<div
-						key={space.id}
-						className="relative"
-						onContextMenu={(e) => handleCardContextMenu(e, space)}
-					>
-						<Link href={spacePath(space.id)}>
-							<SpaceCard name={space.name} description={space.description} />
-						</Link>
+			<DndContext
+				sensors={sensors}
+				onDragStart={handleDragStart}
+				onDragEnd={handleDragEnd}
+			>
+				<SortableContext items={spaces.map((s) => s.id)} strategy={rectSortingStrategy}>
+					<div className="flex flex-1 flex-wrap items-start content-start gap-2">
+						{spaces.map((space) => (
+							<SortableSpaceItem
+								key={space.id}
+								space={space}
+								onContextMenu={handleCardContextMenu}
+								onSpaceClick={handleSpaceClick}
+								didDragRef={didDragRef}
+							/>
+						))}
 					</div>
-				))}
-			</div>
+				</SortableContext>
+				{/* 用 DragOverlay 在 portal 中渲染拖拽预览，避免被父级 overflow 裁剪。不再包一层带 bg 的 div，避免“多一块背景” */}
+				<DragOverlay dropAnimation={defaultDropAnimation}>
+					{activeSpace ? (
+						<div className="cursor-grabbing w-fit">
+							<SpaceCard
+								name={activeSpace.name}
+								description={activeSpace.description}
+							/>
+						</div>
+					) : null}
+				</DragOverlay>
+			</DndContext>
+
+			<SpaceAssetsDrawer
+				spaceId={drawerSpaceId}
+				open={drawerSpaceId != null}
+				onOpenChange={(open) => !open && setDrawerSpaceId(null)}
+			/>
 
 			{contextMenu.open && contextMenu.space && (
 				<>

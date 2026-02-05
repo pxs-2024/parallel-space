@@ -97,9 +97,10 @@ export async function createAsset(
 			description: data.description || null,
 			kind: data.kind,
 			spaceId,
-			// 如果有位置信息，使用它；否则为 null
 			x: data.x ?? null,
 			y: data.y ?? null,
+			width: 160,
+			height: 160,
 		};
 
 		// 消耗型字段

@@ -65,7 +65,8 @@ const MainContainer = ({
 			const my = e.clientY - rect.top;
 
 			const zoomIntensity = 0.0015;
-			const nextScale = clamp(vp.scale * Math.exp(-e.deltaY * zoomIntensity), 0.25, 4);
+			// 只允许缩小，不允许放大：最大 scale 为 1
+			const nextScale = clamp(vp.scale * Math.exp(-e.deltaY * zoomIntensity), 0.25, 1);
 
 			const wx = (mx - vp.vx) / vp.scale;
 			const wy = (my - vp.vy) / vp.scale;
