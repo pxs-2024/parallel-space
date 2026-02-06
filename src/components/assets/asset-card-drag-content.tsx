@@ -4,10 +4,16 @@ import { useState, useEffect } from "react";
 import { Box, Package, Clock, Link2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { CardDescription } from "@/components/ui/card";
-import { getAvatarGradient } from "@/features/space/utils/avatar-gradient";
+import { getAvatarGradient, getTransparentCardGradient } from "@/features/space/utils/avatar-gradient";
 import { cn } from "@/lib/utils";
 const MS_PER_HOUR = 60 * 60 * 1000;
 const MS_PER_DAY = 24 * MS_PER_HOUR;
+
+function hexToRgba(hex: string, alpha: number): string {
+	const m = hex.replace(/^#/, "").match(/^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+	if (!m) return `rgba(0,0,0,${alpha})`;
+	return `rgba(${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)},${alpha})`;
+}
 
 type AssetKind = "STATIC" | "CONSUMABLE" | "TEMPORAL" | "VIRTUAL";
 
@@ -19,6 +25,10 @@ type AssetForDrag = {
 	lastDoneAt: Date | null;
 	nextDueAt: Date | null;
 	createdAt: Date;
+	/** 信息卡背景色，如 #8b5ca8 */
+	cardColor?: string | null;
+	/** 信息卡背景透明度 0–1 */
+	cardOpacity?: number | null;
 };
 
 function formatCountdown(ms: number): { text: string; isExpired: boolean } {
@@ -73,16 +83,16 @@ type AssetCardDragContentProps = {
 
 export function AssetCardDragContent({ asset, nameOnly = false }: AssetCardDragContentProps) {
 	if (nameOnly) {
+		const hasCustomColor = asset.cardColor != null && asset.cardColor !== "";
+		const opacity = asset.cardOpacity != null ? Math.max(0, Math.min(1, Number(asset.cardOpacity))) : 0.2;
+		const background = hasCustomColor
+			? `linear-gradient(135deg, ${hexToRgba(asset.cardColor!, 0)} 0%, ${hexToRgba(asset.cardColor!, opacity)} 100%)`
+			: getTransparentCardGradient(asset.name);
 		return (
-			<div className="flex h-full w-full flex-col items-center justify-center gap-2 p-3">
-				<Avatar className="h-12 w-12 shrink-0 ring-2 ring-background/50">
-					<AvatarFallback
-						className="font-geely text-sm font-medium text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.25)]"
-						style={{ background: getAvatarGradient(asset.name) }}
-					>
-						{asset.name.slice(0, 2)}
-					</AvatarFallback>
-				</Avatar>
+			<div
+				className="flex h-full w-full flex-col items-center justify-center rounded-3xl p-3"
+				style={{ background }}
+			>
 				<span className="truncate max-w-full text-center text-sm font-semibold text-foreground">
 					{asset.name}
 				</span>

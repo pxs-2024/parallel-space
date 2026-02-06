@@ -32,6 +32,8 @@ type AssetCardProps = {
 			createdAt: true;
 			width: true;
 			height: true;
+			cardColor: true;
+			cardOpacity: true;
 		};
 	}>;
 	/** 是否显示右下角拖拽调整宽高把手 */
@@ -178,6 +180,8 @@ const AssetCard = ({ asset, canResize = false, onResizeEnd, dragHandleProps, onC
 						lastDoneAt: asset.lastDoneAt,
 						nextDueAt: asset.nextDueAt,
 						createdAt: asset.createdAt,
+						cardColor: asset.cardColor ?? undefined,
+						cardOpacity: asset.cardOpacity ?? undefined,
 					}}
 				/>
 			</CardContent>

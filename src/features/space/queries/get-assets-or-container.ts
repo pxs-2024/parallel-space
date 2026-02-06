@@ -20,6 +20,8 @@ export const getAssetsAndContainers = async (spaceId: string) => {
 					y: true,
 					width: true,
 					height: true,
+					cardColor: true,
+					cardOpacity: true,
 					kind: true,
 					state: true,
 					quantity: true,

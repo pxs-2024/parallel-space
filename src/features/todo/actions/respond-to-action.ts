@@ -85,18 +85,18 @@ export async function snoozeActions(
   const assetIds = [...new Set(actions.map((a) => a.assetId).filter(Boolean) as string[])];
 
   await prisma.$transaction([
-    ...ids.map((id) =>
-      prisma.action.update({
-        where: { id },
-        data: { status: "SKIPPED" },
-      })
-    ),
-    ...assetIds.map((assetId) =>
-      prisma.asset.update({
-        where: { id: assetId },
-        data: { snoozeUntil, openPromptActionId: null },
-      })
-    ),
+    prisma.action.updateMany({
+      where: { id: { in: ids } },
+      data: { status: "SKIPPED" },
+    }),
+    ...(assetIds.length > 0
+      ? [
+          prisma.asset.updateMany({
+            where: { id: { in: assetIds } },
+            data: { snoozeUntil, openPromptActionId: null },
+          }),
+        ]
+      : []),
   ]);
 
   const locale = await getLocale();

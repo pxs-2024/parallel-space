@@ -87,6 +87,8 @@ model Asset {
   y Float?
   width  Float? // 卡片宽（px），默认 160
   height Float? // 卡片高（px），默认 160
+  cardColor   String? // 信息卡背景色，如 #8b5ca8
+  cardOpacity Float? // 信息卡背景透明度 0–1
 
   // 消耗型
   quantity             Int? // 物品数量

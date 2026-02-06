@@ -30,6 +30,8 @@ type QueryAsset = Prisma.AssetGetPayload<{
 		y: true;
 		width: true;
 		height: true;
+		cardColor: true;
+		cardOpacity: true;
 		kind: true;
 		state: true;
 		quantity: true;
@@ -422,7 +424,17 @@ const Space = ({spaceId, initialAssets}: SpaceProps) => {
 			/>
 			<AssetDetailDrawer
 				asset={selectedAsset}
+				spaceId={spaceId}
 				onClose={() => setSelectedAsset(null)}
+				onUpdated={(patch) => {
+					if (!selectedAsset) return;
+					setAssets((prev) =>
+						prev.map((a) =>
+							a.id === selectedAsset.id ? { ...a, ...patch } : a
+						)
+					);
+					setSelectedAsset((prev) => (prev ? { ...prev, ...patch } : null));
+				}}
 			/>
 		</>
 	)

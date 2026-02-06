@@ -39,3 +39,32 @@ export function getAvatarGradient(name: string): string {
 	const index = hashString(name) % AVATAR_GRADIENTS.length;
 	return AVATAR_GRADIENTS[index];
 }
+
+/**
+ * 透明渐变（低饱和度 + 低 alpha），适合卡片背景，亮/暗主题都好看
+ */
+const TRANSPARENT_CARD_GRADIENTS = [
+	"linear-gradient(135deg, rgba(180,140,220,0.06) 0%, rgba(120,80,180,0.18) 100%)",
+	"linear-gradient(135deg, rgba(240,160,200,0.06) 0%, rgba(200,80,140,0.18) 100%)",
+	"linear-gradient(135deg, rgba(120,200,230,0.08) 0%, rgba(60,140,180,0.2) 100%)",
+	"linear-gradient(135deg, rgba(120,220,160,0.07) 0%, rgba(60,160,100,0.2) 100%)",
+	"linear-gradient(135deg, rgba(230,200,120,0.08) 0%, rgba(180,140,60,0.2) 100%)",
+	"linear-gradient(135deg, rgba(160,220,240,0.07) 0%, rgba(80,160,200,0.2) 100%)",
+	"linear-gradient(135deg, rgba(200,180,240,0.06) 0%, rgba(130,100,200,0.18) 100%)",
+	"linear-gradient(135deg, rgba(240,220,140,0.07) 0%, rgba(200,160,60,0.2) 100%)",
+	"linear-gradient(135deg, rgba(140,200,240,0.07) 0%, rgba(70,130,200,0.2) 100%)",
+	"linear-gradient(135deg, rgba(200,160,230,0.06) 0%, rgba(140,80,180,0.18) 100%)",
+	"linear-gradient(135deg, rgba(140,230,180,0.07) 0%, rgba(80,180,120,0.2) 100%)",
+	"linear-gradient(135deg, rgba(240,140,180,0.06) 0%, rgba(200,70,120,0.18) 100%)",
+	"linear-gradient(135deg, rgba(120,220,220,0.07) 0%, rgba(60,160,160,0.2) 100%)",
+	"linear-gradient(135deg, rgba(220,150,210,0.06) 0%, rgba(160,80,160,0.18) 100%)",
+	"linear-gradient(135deg, rgba(230,210,130,0.08) 0%, rgba(190,150,50,0.2) 100%)",
+] as const;
+
+/**
+ * 根据名称返回稳定的透明渐变，用于物体卡片等，与背景融合
+ */
+export function getTransparentCardGradient(name: string): string {
+	const index = hashString(name) % TRANSPARENT_CARD_GRADIENTS.length;
+	return TRANSPARENT_CARD_GRADIENTS[index];
+}

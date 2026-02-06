@@ -30,6 +30,8 @@ type AssetItem = Prisma.AssetGetPayload<{
 		y: true;
 		width: true;
 		height: true;
+		cardColor: true;
+		cardOpacity: true;
 		kind: true;
 		state: true;
 		quantity: true;
@@ -291,10 +293,22 @@ export function SpaceAssetsDrawer({
 					)}
 </div>
 			</div>
-			<AssetDetailDrawer
-				asset={selectedAsset}
-				onClose={() => setSelectedAsset(null)}
-			/>
+			{spaceId && (
+				<AssetDetailDrawer
+					asset={selectedAsset}
+					spaceId={spaceId}
+					onClose={() => setSelectedAsset(null)}
+					onUpdated={(patch) => {
+						if (!selectedAsset) return;
+						setAssets((prev) =>
+							prev.map((a) =>
+								a.id === selectedAsset.id ? { ...a, ...patch } : a
+							)
+						);
+						setSelectedAsset((prev) => (prev ? { ...prev, ...patch } : null));
+					}}
+				/>
+			)}
 		</>
 	);
 }
