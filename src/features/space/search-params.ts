@@ -2,6 +2,7 @@ import {
 	createSearchParamsCache,
 	parseAsString,
 	parseAsStringLiteral,
+	parseAsInteger,
 } from "nuqs/server";
 
 export const LIST_SORT_FIELDS = ["name", "kind", "state", "quantity", "createdAt"] as const;
@@ -20,6 +21,17 @@ export const kindParser = parseAsString
 	.withOptions(listSearchParserOptions);
 export const stateParser = parseAsString
 	.withDefault("")
+	.withOptions(listSearchParserOptions);
+
+export const spaceIdParser = parseAsString
+	.withDefault("")
+	.withOptions(listSearchParserOptions);
+
+const pageParser = parseAsInteger
+	.withDefault(1)
+	.withOptions(listSearchParserOptions);
+const pageSizeParser = parseAsInteger
+	.withDefault(10)
 	.withOptions(listSearchParserOptions);
 
 const sortFieldParser = parseAsStringLiteral(LIST_SORT_FIELDS)
@@ -44,6 +56,9 @@ export const listSearchParsers = {
 	...searchQueryParser,
 	kind: kindParser,
 	state: stateParser,
+	spaceId: spaceIdParser,
+	page: pageParser,
+	pageSize: pageSizeParser,
 	...sortParser,
 };
 

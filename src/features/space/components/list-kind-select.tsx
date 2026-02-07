@@ -24,7 +24,7 @@ const ListKindSelect = () => {
 	return (
 		<Select
 			value={query.kind || "__all__"}
-			onValueChange={(v) => setQuery({ kind: v === "__all__" ? "" : v })}
+			onValueChange={(v) => setQuery({ kind: v === "__all__" ? "" : v, page: 1 })}
 		>
 			<SelectTrigger className="w-28">
 				<SelectValue placeholder="种类" />

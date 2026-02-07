@@ -32,6 +32,8 @@ type AssetCardHorizontalProps = {
 	className?: string;
 	/** 仅展示名字，详情在点击后于右上角抽屉显示 */
 	nameOnly?: boolean;
+	/** 可选：展示所属空间名称 */
+	spaceName?: string;
 	onCardClick?: (asset: AssetCardHorizontalAsset) => void;
 };
 
@@ -90,7 +92,7 @@ function formatDue(date: Date | null): string {
 	});
 }
 
-const AssetCardHorizontal = ({ asset, className, nameOnly = false, onCardClick }: AssetCardHorizontalProps) => {
+const AssetCardHorizontal = ({ asset, className, nameOnly = false, spaceName, onCardClick }: AssetCardHorizontalProps) => {
 	const hasDescription = asset.description != null && asset.description !== "";
 	const qtyText = [fmt(asset.quantity), fmt(asset.unit)].filter(Boolean).join(" ") || "—";
 	const KindIcon = getKindIcon(asset.kind as AssetKind);
@@ -110,16 +112,23 @@ const AssetCardHorizontal = ({ asset, className, nameOnly = false, onCardClick }
 					className
 				)}
 			>
-				<CardContent className="flex flex-row items-center gap-4 p-4">
-					<Avatar className="h-10 w-10 shrink-0 rounded-xl ring-2 ring-border/50">
-						<AvatarFallback
-							className="rounded-xl font-medium text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.2)]"
-							style={{ background: getAvatarGradient(asset.name) }}
-						>
-							{asset.name.slice(0, 2)}
-						</AvatarFallback>
-					</Avatar>
-					<span className="truncate text-sm font-semibold text-foreground">{asset.name}</span>
+				<CardContent className="flex flex-col gap-1 p-4">
+					<div className="flex flex-row items-center gap-4">
+						<Avatar className="h-10 w-10 shrink-0 rounded-xl ring-2 ring-border/50">
+							<AvatarFallback
+								className="rounded-xl font-medium text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.2)]"
+								style={{ background: getAvatarGradient(asset.name) }}
+							>
+								{asset.name.slice(0, 2)}
+							</AvatarFallback>
+						</Avatar>
+						<span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+							{asset.name}
+						</span>
+					</div>
+					{spaceName && (
+						<span className="pl-14 text-xs text-muted-foreground">{spaceName}</span>
+					)}
 				</CardContent>
 			</Card>
 		);

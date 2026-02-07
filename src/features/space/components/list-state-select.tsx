@@ -25,7 +25,7 @@ const ListStateSelect = () => {
 	return (
 		<Select
 			value={query.state || "__all__"}
-			onValueChange={(v) => setQuery({ state: v === "__all__" ? "" : v })}
+			onValueChange={(v) => setQuery({ state: v === "__all__" ? "" : v, page: 1 })}
 		>
 			<SelectTrigger className="w-28">
 				<SelectValue placeholder="状态" />

@@ -51,12 +51,15 @@ type SpaceAssetsDrawerProps = {
 	spaceId: string | null;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	/** 打开时聚焦到此物品：居中显示并打开详情 */
+	focusAssetId?: string | null;
 };
 
 export function SpaceAssetsDrawer({
 	spaceId,
 	open,
 	onOpenChange,
+	focusAssetId,
 }: SpaceAssetsDrawerProps) {
 	const router = useRouter();
 	const [heightVh, setHeightVh] = useState(HEIGHT_DEFAULT_VH);
@@ -70,6 +73,7 @@ export function SpaceAssetsDrawer({
 	const { spaceDown } = useListenSpace();
 	const startYRef = useRef(0);
 	const startHeightRef = useRef(0);
+	const contentWrapperRef = useRef<HTMLDivElement>(null);
 
 	// 打开抽屉且 spaceId 存在时拉取该空间物品（含 x,y 用于空间视图）；切换空间或关闭时重置编辑状态
 	useEffect(() => {
@@ -100,6 +104,31 @@ export function SpaceAssetsDrawer({
 			cancelled = true;
 		};
 	}, [open, spaceId]);
+
+	// 有 focusAssetId 时：居中显示该物品并打开详情
+	useEffect(() => {
+		if (!focusAssetId || !data || assets.length === 0) return;
+		const asset = assets.find((a) => a.id === focusAssetId);
+		if (!asset) return;
+		const el = contentWrapperRef.current;
+		if (!el) return;
+		const run = () => {
+			const rect = el.getBoundingClientRect();
+			const cardW = 160;
+			const cardH = 160;
+			const worldX = (asset.x ?? 0) + cardW / 2;
+			const worldY = (asset.y ?? 0) + cardH / 2;
+			const scale = 1;
+			const targetScreenX = rect.width * 0.5;
+			const targetScreenY = rect.height * 0.5;
+			const vx = targetScreenX - worldX * scale;
+			const vy = targetScreenY - worldY * scale;
+			setViewport({ vx, vy, scale });
+			setSelectedAsset(asset);
+		};
+		const t = setTimeout(run, 100);
+		return () => clearTimeout(t);
+	}, [focusAssetId, data, assets]);
 
 	const handleResizeStart = useCallback((e: React.MouseEvent) => {
 		e.preventDefault();
@@ -241,7 +270,11 @@ export function SpaceAssetsDrawer({
 					</div>
 				</div>
 				{/* 空间视图：可拖拽画布，随抽屉高度填充 */}
-				<div className="min-h-0 flex-1 overflow-hidden" style={{ minHeight: 0 }}>
+				<div
+					ref={contentWrapperRef}
+					className="min-h-0 flex-1 overflow-hidden"
+					style={{ minHeight: 0 }}
+				>
 					{loading && !data && (
 						<div className="flex h-full items-center justify-center text-muted-foreground">
 							加载中…

@@ -22,6 +22,8 @@ const NO_BREADCRUMB_PATHS = ["/sign-in", "/sign-up"];
 
 function useBreadcrumbSegments(): BreadcrumbSegment[] {
 	const pathname = usePathname();
+	// 空间页面不显示面包屑
+	if (pathname.startsWith("/spaces")) return [];
 	const tSide = useTranslations("side");
 	const tAccount = useTranslations("account");
 	const tBreadcrumb = useTranslations("breadcrumb");

@@ -3,10 +3,10 @@
 import { useQueryStates } from "nuqs";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { searchQueryParser, listSearchOptions } from "../search-params";
+import { listSearchParsers, listSearchOptions } from "../search-params";
 
 const ListSearchInput = () => {
-	const [query, setQuery] = useQueryStates(searchQueryParser, listSearchOptions);
+	const [query, setQuery] = useQueryStates(listSearchParsers, listSearchOptions);
 
 	return (
 		<div className="relative min-w-48 max-w-sm flex-1">
@@ -14,7 +14,7 @@ const ListSearchInput = () => {
 			<Input
 				placeholder="搜索名称或描述..."
 				value={query.q}
-				onChange={(e) => setQuery({ q: e.target.value })}
+				onChange={(e) => setQuery({ q: e.target.value, page: 1 })}
 				className="pl-8"
 			/>
 		</div>

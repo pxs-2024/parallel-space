@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAuth } from "@/features/auth/queries/get-auth";
+import { todoPath } from "@/paths";
 
 type HomePageProps = { params: Promise<{ locale: string }> };
 
@@ -9,11 +10,7 @@ const HomePage = async ({ params }: HomePageProps) => {
   if (!auth) {
     redirect(`/${locale}/sign-in`);
   }
-  return (
-    <div className="flex-1 flex flex-col gap-y-8">
-      todo
-    </div>
-  );
+  redirect(`/${locale}${todoPath()}`);
 };
 
 export default HomePage;

@@ -26,6 +26,8 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { reorderSpaces } from "../actions/reorder-spaces";
 import { SpaceAssetsDrawer } from "./space-assets-drawer";
+import { GlobalAssetSearchPanel } from "./global-asset-search-panel";
+import type { AssetWithSpace } from "../queries/get-all-spaces-assets";
 
 const menuItemClass =
 	"flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground [&_svg]:shrink-0 [&_svg]:size-4";
@@ -38,6 +40,7 @@ type SpaceItem = {
 
 type SpaceListClientProps = {
 	spaces: SpaceItem[];
+	allAssets: AssetWithSpace[];
 };
 
 function SortableSpaceItem({
@@ -98,16 +101,26 @@ function SortableSpaceItem({
 	);
 }
 
-export function SpaceListClient({ spaces: initialSpaces }: SpaceListClientProps) {
+export function SpaceListClient({
+	spaces: initialSpaces,
+	allAssets,
+}: SpaceListClientProps) {
 	const router = useRouter();
 	const [spaces, setSpaces] = useState<SpaceItem[]>(initialSpaces);
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const [drawerSpaceId, setDrawerSpaceId] = useState<string | null>(null);
+	const [focusAssetId, setFocusAssetId] = useState<string | null>(null);
 	const didDragRef = useRef(false);
 	const activeSpace = activeId ? spaces.find((s) => s.id === activeId) : null;
 
 	const handleSpaceClick = useCallback((spaceId: string) => {
 		setDrawerSpaceId(spaceId);
+		setFocusAssetId(null);
+	}, []);
+
+	const handleJumpToSpace = useCallback((spaceId: string, assetId: string) => {
+		setDrawerSpaceId(spaceId);
+		setFocusAssetId(assetId);
 	}, []);
 
 	const [contextMenu, setContextMenu] = useState<{
@@ -215,16 +228,23 @@ export function SpaceListClient({ spaces: initialSpaces }: SpaceListClientProps)
 				onDragEnd={handleDragEnd}
 			>
 				<SortableContext items={spaces.map((s) => s.id)} strategy={rectSortingStrategy}>
-					<div className="flex flex-1 flex-wrap items-start content-start gap-2">
-						{spaces.map((space) => (
-							<SortableSpaceItem
-								key={space.id}
-								space={space}
-								onContextMenu={handleCardContextMenu}
-								onSpaceClick={handleSpaceClick}
-								didDragRef={didDragRef}
-							/>
-						))}
+					<div className="flex min-w-0 flex-1 gap-4">
+						<div className="flex min-w-0 flex-1 flex-wrap items-start content-start gap-2">
+							{spaces.map((space) => (
+								<SortableSpaceItem
+									key={space.id}
+									space={space}
+									onContextMenu={handleCardContextMenu}
+									onSpaceClick={handleSpaceClick}
+									didDragRef={didDragRef}
+								/>
+							))}
+						</div>
+						<GlobalAssetSearchPanel
+							assets={allAssets}
+							spaces={spaces}
+							onJumpToSpace={handleJumpToSpace}
+						/>
 					</div>
 				</SortableContext>
 				{/* 用 DragOverlay 在 portal 中渲染拖拽预览，避免被父级 overflow 裁剪。不再包一层带 bg 的 div，避免“多一块背景” */}
@@ -243,7 +263,13 @@ export function SpaceListClient({ spaces: initialSpaces }: SpaceListClientProps)
 			<SpaceAssetsDrawer
 				spaceId={drawerSpaceId}
 				open={drawerSpaceId != null}
-				onOpenChange={(open) => !open && setDrawerSpaceId(null)}
+				onOpenChange={(open) => {
+					if (!open) {
+						setDrawerSpaceId(null);
+						setFocusAssetId(null);
+					}
+				}}
+				focusAssetId={focusAssetId}
 			/>
 
 			{contextMenu.open && contextMenu.space && (
