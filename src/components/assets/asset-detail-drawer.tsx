@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { Box, Package, Clock, Link2, ExternalLink, X, Palette, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KindBadge } from "./kind-badge";
@@ -152,6 +153,7 @@ function AssetDetailDrawerContent({
 			cardColor: color,
 			cardOpacity: opacity,
 		});
+		toast.success("已保存");
 		onUpdated?.({ cardColor: color, cardOpacity: opacity });
 		setEditingColor(false);
 	};
@@ -161,6 +163,7 @@ function AssetDetailDrawerContent({
 			cardColor: null,
 			cardOpacity: null,
 		});
+		toast.success("已保存");
 		onUpdated?.({ cardColor: null, cardOpacity: null });
 		setEditingColor(false);
 	};
@@ -182,8 +185,11 @@ function AssetDetailDrawerContent({
 		if (!name) return;
 		const res = await updateAssetNameDescription(spaceId, asset.id, { name });
 		if (res.status === "SUCCESS") {
+			toast.success(res.message);
 			onUpdated?.({ name });
 			setEditingName(false);
+		} else if (res.message) {
+			toast.error(res.message);
 		}
 	};
 	const handleCancelName = () => {
@@ -200,8 +206,11 @@ function AssetDetailDrawerContent({
 			description: editDesc.trim() || null,
 		});
 		if (res.status === "SUCCESS") {
+			toast.success(res.message);
 			onUpdated?.({ description: editDesc.trim() || null });
 			setEditingDesc(false);
+		} else if (res.message) {
+			toast.error(res.message);
 		}
 	};
 	const handleCancelDesc = () => {

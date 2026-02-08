@@ -16,22 +16,22 @@ type UserActionFeedbackOptions = {
  * @param Options - 选项
  * @returns 
  */
-const useActionFeedback = (actionState: ActionState, Options: UserActionFeedbackOptions) => {
+const useActionFeedback = (actionState: ActionState, options: UserActionFeedbackOptions) => {
 	const prevTimestamp = useRef(actionState.timestamp);
+	const optionsRef = useRef(options);
+	optionsRef.current = options;
 
 	useEffect(() => {
 		const isNewer = actionState.timestamp > prevTimestamp.current;
-		if (!isNewer) {
-			return;
-		} // 如果actionState的时间戳小于prevTimestamp，则不执行后续逻辑
+		if (!isNewer) return;
 		prevTimestamp.current = actionState.timestamp;
-
+		const opts = optionsRef.current;
 		if (actionState.status === "SUCCESS") {
-			Options.onSuccess?.({ actionState });
+			opts.onSuccess?.({ actionState });
 		} else if (actionState.status === "ERROR") {
-			Options.onError?.({ actionState });
+			opts.onError?.({ actionState });
 		}
-	});
+	}, [actionState.timestamp, actionState.status, actionState]);
 };
 
 export { useActionFeedback };

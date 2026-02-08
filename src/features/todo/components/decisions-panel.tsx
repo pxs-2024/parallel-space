@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Search } from "lucide-react";
+import { toast } from "sonner";
 import { useRouter } from "@/i18n/navigation";
 import { useQueryStates, parseAsString, parseAsStringLiteral } from "nuqs";
 import { Input } from "@/components/ui/input";
@@ -162,6 +163,7 @@ export function DecisionsPanel({ pending }: DecisionsPanelProps) {
 		try {
 			const res = await snoozeActions(Array.from(selectedIds), "ignore_day");
 			if (res.ok && res.count) {
+				toast.success("已忽略");
 				const doc = typeof document !== "undefined" ? document : null;
 				const startVT = doc && "startViewTransition" in doc ? (doc as { startViewTransition: (cb: () => void) => void }).startViewTransition : null;
 				const removeAll = () => {
@@ -176,6 +178,8 @@ export function DecisionsPanel({ pending }: DecisionsPanelProps) {
 					removeAll();
 				}
 				setTimeout(() => router.refresh(), 280);
+			} else if (res.error) {
+				toast.error(res.error);
 			}
 		} finally {
 			setBatchBusy(false);

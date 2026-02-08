@@ -87,7 +87,8 @@
     "pageTotal": "{total} items",
     "pageRange": "{start}-{end} of {total}",
     "prevPage": "Previous page",
-    "nextPage": "Next page"
+    "nextPage": "Next page",
+    "close": "Close"
   },
   "filters": {
     "search": "Search",

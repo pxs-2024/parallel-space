@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { ChevronDown, Move, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -219,8 +220,11 @@ export function SpaceAssetsDrawer({
 			if (!spaceId) return;
 			const res = await moveAssetToSpace(assetId, spaceId, toSpaceId);
 			if (res.status === "SUCCESS") {
+				toast.success(res.message);
 				setAssets((prev) => prev.filter((a) => a.id !== assetId));
 				setSelectedAsset((prev) => (prev?.id === assetId ? null : prev));
+			} else if (res.message) {
+				toast.error(res.message);
 			}
 		},
 		[spaceId]
@@ -231,8 +235,11 @@ export function SpaceAssetsDrawer({
 			if (!spaceId) return;
 			const res = await deleteAsset(spaceId, assetId);
 			if (res.status === "SUCCESS") {
+				toast.success(res.message);
 				setAssets((prev) => prev.filter((a) => a.id !== assetId));
 				setSelectedAsset((prev) => (prev?.id === assetId ? null : prev));
+			} else if (res.message) {
+				toast.error(res.message);
 			}
 		},
 		[spaceId]
@@ -267,6 +274,7 @@ export function SpaceAssetsDrawer({
 			height: a.height ?? undefined,
 		}));
 		await updateAssetPositions(spaceId, updates);
+		toast.success("布局已保存");
 		setIsEditMode(false);
 	}, [assets, spaceId]);
 

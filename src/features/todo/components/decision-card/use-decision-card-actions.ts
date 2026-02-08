@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { toast } from "sonner";
 import { useRouter } from "@/i18n/navigation";
 import { snoozeAction, completeAction, type SnoozeChoice } from "@/features/todo/actions/respond-to-action";
 import { getDecisionItemKey } from "./types";
@@ -24,7 +25,12 @@ export function useDecisionCardActions(item: DecisionItem, onRemoving?: (key: st
 			setBusy(true);
 			try {
 				const res = await snoozeAction(actionId, choice);
-				if (res.ok) onSuccess();
+				if (res.ok) {
+					toast.success("已忽略");
+					onSuccess();
+				} else if (res.error) {
+					toast.error(res.error);
+				}
 			} finally {
 				setBusy(false);
 			}
@@ -37,7 +43,12 @@ export function useDecisionCardActions(item: DecisionItem, onRemoving?: (key: st
 			setBusy(true);
 			try {
 				const res = await completeAction(actionId, amount, nextDueAt);
-				if (res.ok) onSuccess();
+				if (res.ok) {
+					toast.success("已处理");
+					onSuccess();
+				} else if (res.error) {
+					toast.error(res.error);
+				}
 			} finally {
 				setBusy(false);
 			}

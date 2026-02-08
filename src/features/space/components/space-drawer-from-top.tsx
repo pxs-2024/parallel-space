@@ -97,7 +97,7 @@ export function SpaceDrawerFromTop({
 	const drawerContent = (
 		<div
 			className={cn(
-				"fixed left-0 right-0 top-0 z-[55] flex flex-col rounded-b-2xl border-b border-border bg-background/95 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur-sm",
+				"fixed left-0 right-0 top-0 z-[55] flex flex-col rounded-b-2xl border-b border-border bg-background/95 backdrop-blur-sm",
 				"transition-transform duration-300 ease-out",
 				open ? "translate-y-0" : "-translate-y-full"
 			)}

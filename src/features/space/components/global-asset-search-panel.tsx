@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useQueryStates } from "nuqs";
 import { useTranslations } from "next-intl";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { ExternalLink } from "lucide-react";
 import { GlobalSearchFiltersBar } from "./global-search-filters-bar";
 import { AssetCardHorizontal } from "@/components/assets/asset-card-horizontal";
@@ -39,12 +39,15 @@ type GlobalAssetSearchPanelProps = {
 	assets: AssetWithSpace[];
 	spaces: SpaceItem[];
 	onJumpToSpace?: (spaceId: string, assetId: string) => void;
+	/** 提供时在面板右上角显示关闭按钮，用于收起搜索 */
+	onClose?: () => void;
 };
 
 export function GlobalAssetSearchPanel({
 	assets,
 	spaces,
 	onJumpToSpace,
+	onClose,
 }: GlobalAssetSearchPanelProps) {
 	const t = useTranslations("search");
 	const [appliedFilters, setQuery] = useQueryStates(
@@ -173,6 +176,17 @@ export function GlobalAssetSearchPanel({
 				onSearch={handleSearch}
 				onReset={handleReset}
 				spaces={spaces}
+				rightSlot={onClose ? (
+					<Button
+						variant="outline"
+						size="icon"
+						className="h-9 w-9 shrink-0"
+						onClick={onClose}
+						aria-label={t("close")}
+					>
+						<X className="size-4" />
+					</Button>
+				) : undefined}
 			/>
 			<div className="scrollbar-hide min-h-0 flex-1 overflow-auto p-4">
 				<ul className="flex flex-col gap-3">

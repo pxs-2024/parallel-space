@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
-import { Pencil } from "lucide-react";
+import { Pencil, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SpaceCard } from "./space-card";
 import { EditSpaceDialog, type SpaceForEdit } from "./edit-space-dialog";
@@ -30,6 +30,7 @@ import {
 	HEIGHT_SHOW_SPACE_DRAWER_VH,
 } from "./space-drawer-from-top";
 import { GlobalAssetSearchPanel } from "./global-asset-search-panel";
+import { Button } from "@/components/ui/button";
 import type { AssetWithSpace } from "../queries/get-all-spaces-assets";
 
 const menuItemClass =
@@ -108,7 +109,9 @@ export function SpaceListClient({
 }: SpaceListClientProps) {
 	const router = useRouter();
 	const t = useTranslations("space");
+	const tFilters = useTranslations("filters");
 	const [spaces, setSpaces] = useState<SpaceItem[]>(initialSpaces);
+	const [searchPanelOpen, setSearchPanelOpen] = useState(false);
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const [drawerSpaceId, setDrawerSpaceId] = useState<string | null>(null);
 	const [focusAssetId, setFocusAssetId] = useState<string | null>(null);
@@ -234,7 +237,7 @@ export function SpaceListClient({
 				onDragEnd={handleDragEnd}
 			>
 				<SortableContext items={spaces.map((s) => s.id)} strategy={rectSortingStrategy}>
-					<div className="flex min-w-0 flex-1 gap-4">
+					<div className="flex min-w-0 flex-1">
 						<div className="flex min-w-0 flex-1 flex-wrap items-start content-start gap-2">
 							{spaces.map((space) => (
 								<SortableSpaceItem
@@ -246,12 +249,35 @@ export function SpaceListClient({
 								/>
 							))}
 						</div>
+					</div>
+					<div
+						className={cn(
+							"fixed right-6 top-24 z-30 max-h-[calc(100vh-6rem)] transition-all duration-200 ease-out",
+							searchPanelOpen
+								? "translate-x-0 opacity-100"
+								: "pointer-events-none translate-x-4 opacity-0"
+						)}
+					>
 						<GlobalAssetSearchPanel
 							assets={allAssets}
 							spaces={spaces}
 							onJumpToSpace={handleJumpToSpace}
+							onClose={() => setSearchPanelOpen(false)}
 						/>
 					</div>
+					<Button
+						type="button"
+						variant="outline"
+						size="icon"
+						className={cn(
+							"fixed right-6 top-[28%] z-30 h-12 w-12 -translate-y-1/2 rounded-full shadow-md transition-all duration-200 ease-out",
+							searchPanelOpen ? "pointer-events-none scale-90 opacity-0" : "scale-100 opacity-100"
+						)}
+						onClick={() => setSearchPanelOpen(true)}
+						aria-label={tFilters("search")}
+					>
+						<Search className="size-5" />
+					</Button>
 				</SortableContext>
 				{/* 用 DragOverlay 在 portal 中渲染拖拽预览，避免被父级 overflow 裁剪。不再包一层带 bg 的 div，避免“多一块背景” */}
 				<DragOverlay dropAnimation={defaultDropAnimation}>

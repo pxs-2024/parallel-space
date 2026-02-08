@@ -55,6 +55,8 @@ type GlobalSearchFiltersBarProps = {
 	onSearch: () => void;
 	onReset: () => void;
 	spaces: SpaceItem[];
+	/** 第一行右侧插槽，如关闭按钮 */
+	rightSlot?: React.ReactNode;
 };
 
 export function GlobalSearchFiltersBar({
@@ -63,13 +65,14 @@ export function GlobalSearchFiltersBar({
 	onSearch,
 	onReset,
 	spaces,
+	rightSlot,
 }: GlobalSearchFiltersBarProps) {
 	const t = useTranslations("filters");
 	const tAsset = useTranslations("asset");
 	const selectClass = "h-9 w-full min-w-0";
 	return (
 		<div className="flex shrink-0 flex-col gap-3 border-b border-border bg-muted/20 px-4 py-3">
-			{/* 搜索框 + 搜索/重置：第一行 */}
+			{/* 搜索框 + 搜索/重置 + 右侧插槽（如关闭）：第一行 */}
 			<div className="flex items-center gap-2">
 				<div className="relative min-w-0 flex-1">
 					<Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -81,13 +84,14 @@ export function GlobalSearchFiltersBar({
 						onKeyDown={(e) => e.key === "Enter" && onSearch()}
 					/>
 				</div>
-				<div className="flex shrink-0 gap-2">
+				<div className="flex shrink-0 items-center gap-2">
 					<Button size="sm" className="h-9 w-14 shrink-0" onClick={onSearch}>
 						{t("search")}
 					</Button>
 					<Button size="sm" variant="outline" className="h-9 w-14 shrink-0" onClick={onReset}>
 						{t("reset")}
 					</Button>
+					{rightSlot}
 				</div>
 			</div>
 			{/* 筛选条件 + 搜索/重置按钮：第二行及以后 */}

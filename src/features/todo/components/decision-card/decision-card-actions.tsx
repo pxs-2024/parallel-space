@@ -1,7 +1,10 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { format } from "date-fns";
+import { zhCN } from "date-fns/locale";
+import { CalendarIcon, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import {
 	DropdownMenu,
@@ -9,7 +12,13 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { SNOOZE_OPTIONS } from "./constants";
+import { cn } from "@/lib/utils";
 import type { PendingConfirmAction } from "@/features/todo/queries/get-todo-page-data";
 import type { SnoozeChoice } from "@/features/todo/actions/respond-to-action";
 
@@ -136,17 +145,42 @@ export function DecisionCardActions({
 		);
 	}
 
-	// REMIND：选择到期时间后更新
+	// REMIND：选择到期时间后更新（使用 shadcn Calendar + Popover）
 	if (a.type === "REMIND") {
 		if (showRemindDateInput) {
+			const selectedDate = remindDueDate.trim()
+				? new Date(remindDueDate + "T12:00:00")
+				: undefined;
 			return (
 				<>
-					<input
-						type="date"
-						value={remindDueDate}
-						onChange={(e) => onRemindDueDateChange(e.target.value)}
-						className="h-9 w-36 rounded-md border border-input bg-background px-3 py-1 text-sm"
-					/>
+					<Popover>
+						<PopoverTrigger asChild>
+							<Button
+								size="sm"
+								variant="outline"
+								className={cn(
+									"h-9 w-36 justify-start gap-2 pl-3 font-normal",
+									!selectedDate && "text-muted-foreground"
+								)}
+							>
+								<CalendarIcon className="size-4 shrink-0" />
+								{selectedDate
+									? format(selectedDate, "yyyy-MM-dd", { locale: zhCN })
+									: "选择日期"}
+							</Button>
+						</PopoverTrigger>
+						<PopoverContent className="w-auto p-0" align="start">
+							<Calendar
+								mode="single"
+								selected={selectedDate}
+								onSelect={(d) =>
+									d && onRemindDueDateChange(format(d, "yyyy-MM-dd"))
+								}
+								locale={zhCN}
+								disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+							/>
+						</PopoverContent>
+					</Popover>
 					<Button
 						size="sm"
 						disabled={busy || !remindDueDate.trim()}
