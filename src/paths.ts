@@ -9,6 +9,5 @@ export const accountPasswordPath = () => "/account/password";
 export const passwordForgotPath = () => "/password-forget";
 
 export const spacesPath = () => "/spaces";
-export const spacePath = (spaceId: string) => `/spaces/${spaceId}`;
 export const todoPath = () => "/todo";
 export const historyPath = () => "/history";

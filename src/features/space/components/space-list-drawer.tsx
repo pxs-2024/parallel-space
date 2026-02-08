@@ -1,10 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "@/i18n/navigation";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { spacePath } from "@/paths";
 import { SpaceCard } from "./space-card";
 import { Button } from "@/components/ui/button";
 
@@ -112,17 +110,17 @@ export function SpaceListDrawer({
 				<div className="min-h-0 flex-1 overflow-y-auto p-4">
 					<div className="flex flex-wrap items-start justify-start gap-4">
 						{spaces.map((space) => (
-							<Link
+							<button
 								key={space.id}
-								href={spacePath(space.id)}
+								type="button"
 								onClick={() => onOpenChange(false)}
 								className={cn(
-									"block rounded-lg transition-opacity hover:opacity-90",
+									"block w-full rounded-lg text-left transition-opacity hover:opacity-90",
 									space.id === currentSpaceId && "ring-2 ring-primary ring-offset-2 ring-offset-background"
 								)}
 							>
 								<SpaceCard name={space.name} description={space.description} />
-							</Link>
+							</button>
 						))}
 					</div>
 				</div>

@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Box, Package, Clock, Link2, ExternalLink, X, Palette } from "lucide-react";
-import { cn } from "@/lib/utils";
+import React, { useState } from "react";
+import { Box, Package, Clock, Link2, ExternalLink, X, Palette, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KindBadge } from "./kind-badge";
 import { Badge } from "./badge";
@@ -10,6 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
 import { getAvatarGradient } from "@/features/space/utils/avatar-gradient";
 import { updateAssetCardStyle } from "@/features/space/actions/update-asset-card-style";
+import { updateAssetNameDescription } from "@/features/space/actions/update-asset-name-description";
 import type { Prisma } from "@/generated/prisma/client";
 
 const DEFAULT_CARD_COLOR = "#8b5ca8";
@@ -46,13 +46,14 @@ function fmt<T>(v: T | null | undefined, f?: (x: T) => string): string {
 	return f ? f(v as T) : String(v);
 }
 
-function getKindIcon(kind: string) {
-	switch (kind) {
-		case "CONSUMABLE": return Package;
-		case "TEMPORAL": return Clock;
-		case "VIRTUAL": return Link2;
-		default: return Box;
-	}
+const KIND_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+	CONSUMABLE: Package,
+	TEMPORAL: Clock,
+	VIRTUAL: Link2,
+};
+function KindIcon({ kind, className }: { kind: string; className?: string }) {
+	const Icon = KIND_ICONS[kind] ?? Box;
+	return <Icon className={className} />;
 }
 
 function getStateLabel(state: string): string {
@@ -90,16 +91,40 @@ type AssetDetailDrawerProps = {
 	asset: AssetForDetail | null;
 	spaceId: string;
 	onClose: () => void;
-	/** 保存信息卡颜色/透明度后回调，用于同步本地状态 */
-	onUpdated?: (patch: { cardColor: string | null; cardOpacity: number | null }) => void;
+	/** 保存后回调，用于同步本地状态 */
+	onUpdated?: (patch: {
+		cardColor?: string | null;
+		cardOpacity?: number | null;
+		name?: string;
+		description?: string | null;
+	}) => void;
 };
 
 export function AssetDetailDrawer({ asset, spaceId, onClose, onUpdated }: AssetDetailDrawerProps) {
+	if (!asset) return null;
+	return (
+		<AssetDetailDrawerContent
+			asset={asset}
+			spaceId={spaceId}
+			onClose={onClose}
+			onUpdated={onUpdated}
+		/>
+	);
+}
+
+function AssetDetailDrawerContent({
+	asset,
+	spaceId,
+	onClose,
+	onUpdated,
+}: AssetDetailDrawerProps & { asset: AssetForDetail }) {
 	const [editingColor, setEditingColor] = useState(false);
 	const [editColor, setEditColor] = useState(DEFAULT_CARD_COLOR);
 	const [editOpacity, setEditOpacity] = useState(20);
-
-	if (!asset) return null;
+	const [editingName, setEditingName] = useState(false);
+	const [editName, setEditName] = useState(asset.name);
+	const [editingDesc, setEditingDesc] = useState(false);
+	const [editDesc, setEditDesc] = useState(asset.description ?? "");
 
 	const openColorEditor = () => {
 		setEditColor(asset.cardColor ?? DEFAULT_CARD_COLOR);
@@ -109,8 +134,13 @@ export function AssetDetailDrawer({ asset, spaceId, onClose, onUpdated }: AssetD
 		setEditingColor(true);
 	};
 
-	const KindIcon = getKindIcon(asset.kind);
 	const qtyText = [fmt(asset.quantity), fmt(asset.unit)].filter(Boolean).join(" ") || "—";
+
+	// 有卡片背景色时头像使用同色渐变，否则用名称生成的渐变
+	const avatarBackground =
+		asset.cardColor != null && asset.cardColor !== ""
+			? `linear-gradient(135deg, ${hexToRgba(asset.cardColor, 0)} 0%, ${hexToRgba(asset.cardColor, asset.cardOpacity != null ? Math.max(0, Math.min(1, Number(asset.cardOpacity))) : 0.25)} 100%)`
+			: getAvatarGradient(asset.name);
 
 	const handleSaveColor = async () => {
 		const color = editColor.trim() || null;
@@ -140,6 +170,42 @@ export function AssetDetailDrawer({ asset, spaceId, onClose, onUpdated }: AssetD
 		setEditingColor(false);
 	};
 
+	const openNameEditor = () => {
+		setEditName(asset.name);
+		setEditingName(true);
+	};
+	const handleSaveName = async () => {
+		const name = editName.trim();
+		if (!name) return;
+		const res = await updateAssetNameDescription(spaceId, asset.id, { name });
+		if (res.status === "SUCCESS") {
+			onUpdated?.({ name });
+			setEditingName(false);
+		}
+	};
+	const handleCancelName = () => {
+		setEditName(asset.name);
+		setEditingName(false);
+	};
+
+	const openDescEditor = () => {
+		setEditDesc(asset.description ?? "");
+		setEditingDesc(true);
+	};
+	const handleSaveDesc = async () => {
+		const res = await updateAssetNameDescription(spaceId, asset.id, {
+			description: editDesc.trim() || null,
+		});
+		if (res.status === "SUCCESS") {
+			onUpdated?.({ description: editDesc.trim() || null });
+			setEditingDesc(false);
+		}
+	};
+	const handleCancelDesc = () => {
+		setEditDesc(asset.description ?? "");
+		setEditingDesc(false);
+	};
+
 	// 实时预览：当前编辑中的渐变背景（与卡片一致）
 	const previewBackground =
 		editingColor && (editColor?.trim() || DEFAULT_CARD_COLOR)
@@ -156,7 +222,7 @@ export function AssetDetailDrawer({ asset, spaceId, onClose, onUpdated }: AssetD
 			{/* 调色盘：紧挨物品信息面板左侧，底边对齐，不遮挡信息卡 */}
 			{editingColor && (
 				<div
-					className="fixed bottom-4 z-50 w-64 rounded-xl border border-border bg-card p-3 shadow-xl"
+					className="fixed bottom-4 z-50 w-64 rounded-xl border border-border bg-card/95 backdrop-blur-sm p-3 shadow-xl"
 					style={{ right: "calc(1rem + 20rem + 0.5rem)" }}
 					onClick={(e) => e.stopPropagation()}
 				>
@@ -213,7 +279,7 @@ export function AssetDetailDrawer({ asset, spaceId, onClose, onUpdated }: AssetD
 				</div>
 			)}
 			{/* 物品信息面板：始终右侧固定，不随调色盘扩展 */}
-			<div className="fixed right-4 bottom-4 z-50 w-80 max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+			<div className="fixed right-4 bottom-4 z-50 w-80 max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex flex-col overflow-hidden rounded-xl border border-border bg-card/95 backdrop-blur-sm shadow-xl">
 				<div className="flex shrink-0 items-center justify-between border-b border-border bg-card px-4 py-2">
 					<span className="text-sm font-medium text-muted-foreground">物品信息</span>
 					<Button variant="ghost" size="icon" onClick={onClose} aria-label="关闭">
@@ -223,19 +289,51 @@ export function AssetDetailDrawer({ asset, spaceId, onClose, onUpdated }: AssetD
 				<div className="min-h-0 flex-1 overflow-y-auto p-4">
 					<div className="space-y-4">
 						<div className="flex items-center gap-3">
-							<Avatar className="h-12 w-12 shrink-0 ring-2 ring-border/50">
+							<Avatar className="h-16 w-16 shrink-0 ring-2 ring-border/50">
 								<AvatarFallback
-									className="font-geely text-sm font-medium text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.25)]"
-									style={{ background: getAvatarGradient(asset.name) }}
+									className="font-geely text-sm font-medium text-white p-1 [text-shadow:0_1px_2px_rgba(0,0,0,0.25)]"
+									style={{ background: avatarBackground }}
 								>
 									{asset.name.slice(0, 2)}
 								</AvatarFallback>
 							</Avatar>
 							<div className="min-w-0 flex-1">
-								<p className="truncate font-semibold text-foreground">{asset.name}</p>
+								{editingName ? (
+									<div className="flex flex-col gap-2">
+										<input
+											type="text"
+											value={editName}
+											onChange={(e) => setEditName(e.target.value)}
+											className="h-9 rounded-md border border-input bg-background px-2 text-sm font-semibold"
+											placeholder="名称"
+											autoFocus
+										/>
+										<div className="flex gap-1">
+											<Button size="sm" className="h-7" onClick={handleSaveName}>
+												保存
+											</Button>
+											<Button variant="outline" size="sm" className="h-7" onClick={handleCancelName}>
+												取消
+											</Button>
+										</div>
+									</div>
+								) : (
+									<div className="flex items-center gap-1.5 flex-wrap">
+										<p className="truncate font-semibold text-foreground">{asset.name}</p>
+										<Button
+											variant="ghost"
+											size="sm"
+											className="h-7 w-7 p-0 text-muted-foreground"
+											onClick={openNameEditor}
+											aria-label="修改名称"
+										>
+											<Pencil className="size-3.5" />
+										</Button>
+									</div>
+								)}
 								<div className="flex flex-wrap items-center gap-1.5 mt-0.5">
 									<span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted/80 text-muted-foreground">
-										<KindIcon className="size-3.5" />
+										<KindIcon kind={asset.kind} className="size-3.5" />
 									</span>
 									<KindBadge kind={asset.kind} />
 									<Badge variant={getStateBadgeVariant(asset.state)}>
@@ -244,12 +342,45 @@ export function AssetDetailDrawer({ asset, spaceId, onClose, onUpdated }: AssetD
 								</div>
 							</div>
 						</div>
-						{asset.description != null && asset.description !== "" && (
-							<div>
-								<p className="text-xs font-medium text-muted-foreground mb-1">描述</p>
-								<p className="text-sm text-foreground whitespace-pre-wrap">{asset.description}</p>
+						<div>
+							<div className="flex items-center justify-between gap-2 mb-1">
+								<p className="text-xs font-medium text-muted-foreground">描述</p>
+								{!editingDesc ? (
+									<Button
+										variant="outline"
+										size="sm"
+										className="h-7 gap-1"
+										onClick={openDescEditor}
+									>
+										<Pencil className="size-3.5" />
+										{asset.description != null && asset.description !== "" ? "修改" : "添加"}
+									</Button>
+								) : null}
 							</div>
-						)}
+							{editingDesc ? (
+								<div className="flex flex-col gap-2">
+									<textarea
+										value={editDesc}
+										onChange={(e) => setEditDesc(e.target.value)}
+										className="min-h-20 rounded-md border border-input bg-background px-2 py-1.5 text-sm resize-y"
+										placeholder="选填"
+										autoFocus
+									/>
+									<div className="flex gap-1">
+										<Button size="sm" className="h-7" onClick={handleSaveDesc}>
+											保存
+										</Button>
+										<Button variant="outline" size="sm" className="h-7" onClick={handleCancelDesc}>
+											取消
+										</Button>
+									</div>
+								</div>
+							) : (
+								<p className="text-sm text-foreground whitespace-pre-wrap">
+									{asset.description != null && asset.description !== "" ? asset.description : "—"}
+								</p>
+							)}
+						</div>
 						{(asset.quantity != null || asset.unit) && (
 							<div>
 								<p className="text-xs font-medium text-muted-foreground mb-1">数量</p>
@@ -283,7 +414,7 @@ export function AssetDetailDrawer({ asset, spaceId, onClose, onUpdated }: AssetD
 								</a>
 							</div>
 						)}
-						<div className="min-h-[2.25rem]">
+						<div className="min-h-9">
 							<div className="flex min-h-7 items-center justify-between">
 								<p className="text-xs font-medium text-muted-foreground">信息卡颜色</p>
 								{!editingColor ? (

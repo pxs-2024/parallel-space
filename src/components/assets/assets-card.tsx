@@ -9,8 +9,8 @@ import { AssetCardDragContent } from "./asset-card-drag-content";
 import type { DragHandleProps } from "@/components/space/draggable-wrap";
 
 const DEFAULT_SIZE = 160;
-const MIN_SIZE = 80;
-const MAX_SIZE = 400;
+const MIN_SIZE = 48;
+const MAX_SIZE = 560;
 
 type AssetCardProps = {
 	asset: Prisma.AssetGetPayload<{
@@ -44,9 +44,11 @@ type AssetCardProps = {
 	dragHandleProps?: DragHandleProps | null;
 	/** 点击卡片（非把手区域）时回调，用于在右上角抽屉显示详情 */
 	onCardClick?: (asset: AssetCardProps["asset"]) => void;
+	/** 右下角详情打开时高亮该卡片 */
+	isSelected?: boolean;
 };
 
-const AssetCard = ({ asset, canResize = false, onResizeEnd, dragHandleProps, onCardClick }: AssetCardProps) => {
+const AssetCard = ({ asset, canResize = false, onResizeEnd, dragHandleProps, onCardClick, isSelected = false }: AssetCardProps) => {
 	const [isGrabbing, setIsGrabbing] = useState(false);
 	const [size, setSize] = useState({ width: asset.width ?? DEFAULT_SIZE, height: asset.height ?? DEFAULT_SIZE });
 	const [isResizing, setIsResizing] = useState(false);
@@ -58,8 +60,11 @@ const AssetCard = ({ asset, canResize = false, onResizeEnd, dragHandleProps, onC
 	const displayW = isResizing ? size.width : (asset.width ?? DEFAULT_SIZE);
 	const displayH = isResizing ? size.height : (asset.height ?? DEFAULT_SIZE);
 
-	const handleMouseDown = () => {
-		setIsGrabbing(true);
+	const handleMouseDown = (e: React.MouseEvent) => {
+		// 仅当从顶部可拖拽区域按下时才展示抓取光标，点击卡片其他区域不展示
+		if (e.target instanceof Element && e.target.closest("[data-drag-handle]")) {
+			setIsGrabbing(true);
+		}
 	};
 
 	const handleMouseUp = () => {
@@ -147,21 +152,23 @@ const AssetCard = ({ asset, canResize = false, onResizeEnd, dragHandleProps, onC
 			onMouseUp={handleMouseUp}
 			onClick={onCardClick ? handleCardClick : undefined}
 			className={cn(
-				"group relative rounded-3xl border border-border bg-transparent p-0 transition-all duration-200 ease-out overflow-visible",
+				"group relative rounded-xl border border-border bg-transparent p-0 transition-all duration-200 ease-out overflow-visible",
 				"shadow-[0_4px_14px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_14px_rgba(0,0,0,0.25)]",
 				"hover:border-primary/20 hover:shadow-md dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.35)]",
+				onCardClick && !canDragPosition && "cursor-pointer",
+				isSelected && "ring-2 ring-primary border-primary/50 shadow-md dark:shadow-lg",
 				isGrabbing &&
-					"cursor-grabbing scale-[1.02] border-primary/30 shadow-lg dark:shadow-[0_12px_28px_rgba(0,0,0,0.4)] ring-2 ring-primary/20"
+					"cursor-grabbing border-primary/30 !shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:ring-2 dark:ring-primary/50 dark:!shadow-none"
 			)}
 			style={{ width: displayW, height: displayH, minWidth: MIN_SIZE, minHeight: MIN_SIZE }}
 		>
-			{/* 仅在此区域按下时可拖拽位置；拖拽大小时不触发位移 */}
+			{/* 移动模式下，仅悬浮到顶部可拖拽区域时再展示把手图标与 grab 光标 */}
 			{handleProps.listeners && Object.keys(handleProps.listeners).length > 0 && (
 				<div
 					data-drag-handle
 					className={cn(
-						"absolute left-0 right-0 top-0 z-10 flex cursor-grab items-center justify-center rounded-t-3xl border-b border-border/50 bg-muted/40 py-1.5 active:cursor-grabbing",
-						"opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+						"absolute left-0 right-0 top-0 z-10 flex cursor-grab items-center justify-center rounded-t-xl border-b border-border/50 bg-muted/40 py-1.5 active:cursor-grabbing",
+						"opacity-0 transition-opacity hover:opacity-100 focus-within:opacity-100"
 					)}
 					{...handleProps.listeners}
 					{...handleProps.attributes}
@@ -172,6 +179,7 @@ const AssetCard = ({ asset, canResize = false, onResizeEnd, dragHandleProps, onC
 			<CardContent className="flex h-full flex-col items-center justify-center p-0">
 				<AssetCardDragContent
 					nameOnly
+					cardWidth={displayW}
 					asset={{
 						name: asset.name,
 						description: asset.description,

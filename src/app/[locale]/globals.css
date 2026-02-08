@@ -180,13 +180,25 @@
 /* 空间页拖拽容器网格背景（跟随主题） */
 .drag-space-grid {
 	background-image:
-		linear-gradient(to right, rgba(0, 0, 0, 0.06) 1px, transparent 1px),
-		linear-gradient(to bottom, rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+		linear-gradient(to right, rgba(0, 0, 0, 0.14) 1px, transparent 1px),
+		linear-gradient(to bottom, rgba(0, 0, 0, 0.14) 1px, transparent 1px);
 }
 .dark .drag-space-grid {
 	background-image:
-		linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-		linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+		linear-gradient(to right, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+		linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+}
+
+/* 抽屉可拖拽区域：离屏 3D 浮起感（亮色/暗色） */
+.drawer-canvas-3d {
+	box-shadow:
+		0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+		0 8px 24px -4px rgba(0, 0, 0, 0.1);
+}
+.dark .drawer-canvas-3d {
+	box-shadow:
+		0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+		0 8px 24px -4px rgba(0, 0, 0, 0.2);
 }
 
 /* 隐藏滚动条，保留滚动能力（用于页面级容器） */

@@ -45,6 +45,11 @@ export function SpacesPageClient({ children }: SpacesPageClientProps) {
 	}, [contextMenu.open, closeMenu]);
 
 	const handleContextMenu = useCallback((e: React.MouseEvent) => {
+		// 点击在自带右键菜单的区域（搜索列表卡片、抽屉内等）时不弹出「新建空间」
+		const target = e.target as HTMLElement;
+		if (target.closest("[data-context-menu-handled]")) {
+			return;
+		}
 		e.preventDefault();
 		setContextMenu({ open: true, x: e.clientX, y: e.clientY });
 	}, []);
@@ -94,7 +99,7 @@ export function SpacesPageClient({ children }: SpacesPageClientProps) {
 							onClick={handleCreateSpace}
 						>
 							<FolderPlus className="text-muted-foreground" />
-							新增空间
+							新建空间
 						</button>
 					</div>
 				</>

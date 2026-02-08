@@ -114,7 +114,7 @@ model Asset {
   updatedAt DateTime @updatedAt
 
   actions          Action[]
-  openPromptAction Action?  @relation("AssetOpenPromptAction", fields: [openPromptActionId], references: [id])
+  openPromptAction Action?  @relation("AssetOpenPromptAction", fields: [openPromptActionId], references: [id], onDelete: SetNull)
 
   @@index([spaceId])
   @@index([spaceId, isDeleted])
@@ -143,7 +143,7 @@ model Action {
   space   Space  @relation(fields: [spaceId], references: [id])
 
   assetId String?
-  asset   Asset?  @relation(fields: [assetId], references: [id])
+  asset   Asset?  @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
   type   ActionType
   status ActionStatus @default(OPEN)

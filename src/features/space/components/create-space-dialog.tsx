@@ -59,7 +59,7 @@ const CreateSpaceDialog = ({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-[400px]">
 				<DialogHeader>
-					<DialogTitle>新增空间</DialogTitle>
+					<DialogTitle>新建空间</DialogTitle>
 				</DialogHeader>
 				<Form action={action} actionState={actionState} onSuccess={handleSuccess}>
 					<div className="space-y-4 py-4">

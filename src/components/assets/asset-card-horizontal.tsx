@@ -24,6 +24,8 @@ type AssetCardHorizontalAsset = Prisma.AssetGetPayload<{
 		nextDueAt: true;
 		refUrl: true;
 		expiresAt: true;
+		cardColor: true;
+		cardOpacity: true;
 	};
 }>;
 
@@ -92,6 +94,13 @@ function formatDue(date: Date | null): string {
 	});
 }
 
+function hexToRgba(hex: string, alpha: number): string {
+	const h = hex.replace(/^#/, "");
+	const m = h.match(/^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+	if (!m) return `rgba(0,0,0,${alpha})`;
+	return `rgba(${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)},${alpha})`;
+}
+
 const AssetCardHorizontal = ({ asset, className, nameOnly = false, spaceName, onCardClick }: AssetCardHorizontalProps) => {
 	const hasDescription = asset.description != null && asset.description !== "";
 	const qtyText = [fmt(asset.quantity), fmt(asset.unit)].filter(Boolean).join(" ") || "—";
@@ -100,35 +109,41 @@ const AssetCardHorizontal = ({ asset, className, nameOnly = false, spaceName, on
 	const dueText = formatDue(asset.nextDueAt ?? asset.dueAt ?? asset.expiresAt ?? null);
 	const hasReorder = asset.reorderPoint != null;
 
+	// 有卡片背景色时头像使用同色，否则用名称生成的渐变
+	const avatarBackground =
+		asset.cardColor != null && asset.cardColor !== ""
+			? `linear-gradient(135deg, ${hexToRgba(asset.cardColor, 0)} 0%, ${hexToRgba(asset.cardColor, asset.cardOpacity != null ? Math.max(0, Math.min(1, Number(asset.cardOpacity))) : 0.25)} 100%)`
+			: getAvatarGradient(asset.name);
+
 	if (nameOnly) {
 		return (
 			<Card
 				role={onCardClick ? "button" : undefined}
 				onClick={onCardClick ? () => onCardClick(asset) : undefined}
 				className={cn(
-					"rounded-xl border border-border bg-card shadow-sm transition-all duration-200",
-					"hover:border-border/80 hover:shadow-md hover:bg-card/95",
+					"rounded-xl border border-border/80 bg-card shadow-sm transition-all duration-200",
+					"hover:border-border hover:shadow-md hover:bg-card/98",
 					onCardClick && "cursor-pointer",
 					className
 				)}
 			>
-				<CardContent className="flex flex-col gap-1 p-4">
-					<div className="flex flex-row items-center gap-4">
-						<Avatar className="h-10 w-10 shrink-0 rounded-xl ring-2 ring-border/50">
-							<AvatarFallback
-								className="rounded-xl font-medium text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.2)]"
-								style={{ background: getAvatarGradient(asset.name) }}
-							>
-								{asset.name.slice(0, 2)}
-							</AvatarFallback>
-						</Avatar>
-						<span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+				<CardContent className="flex flex-row items-center gap-3 py-1.5 px-3">
+					<Avatar className="h-12 w-12 shrink-0 rounded-xl ring-2 ring-border/40">
+						<AvatarFallback
+							className="rounded-xl font-medium text-white p-1.5 text-sm [text-shadow:0_1px_2px_rgba(0,0,0,0.2)]"
+							style={{ background: avatarBackground }}
+						>
+							{asset.name.slice(0, 2)}
+						</AvatarFallback>
+					</Avatar>
+					<div className="flex min-w-0 flex-1 flex-col gap-0.5">
+						<span className="truncate text-sm font-semibold text-foreground">
 							{asset.name}
 						</span>
+						{spaceName && (
+							<span className="truncate text-xs text-muted-foreground">{spaceName}</span>
+						)}
 					</div>
-					{spaceName && (
-						<span className="pl-14 text-xs text-muted-foreground">{spaceName}</span>
-					)}
 				</CardContent>
 			</Card>
 		);
@@ -137,17 +152,17 @@ const AssetCardHorizontal = ({ asset, className, nameOnly = false, spaceName, on
 	return (
 		<Card
 			className={cn(
-				"rounded-xl border border-border bg-card shadow-sm transition-all duration-200",
-				"hover:border-border/80 hover:shadow-md hover:bg-card/95",
+				"rounded-xl border border-border/80 bg-card shadow-sm transition-all duration-200",
+				"hover:border-border hover:shadow-md hover:bg-card/98",
 				className
 			)}
 		>
-			<CardContent className="flex flex-row items-stretch gap-4 p-4">
+			<CardContent className="flex flex-row items-stretch gap-3 p-3">
 				{/* 左侧头像 */}
-				<Avatar className="h-12 w-12 shrink-0 rounded-xl ring-2 ring-border/50">
+				<Avatar className="h-14 w-14 shrink-0 rounded-xl ring-2 ring-border/40">
 					<AvatarFallback
-						className="rounded-xl font-medium text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.2)]"
-						style={{ background: getAvatarGradient(asset.name) }}
+						className="rounded-xl font-medium text-white p-1.5 [text-shadow:0_1px_2px_rgba(0,0,0,0.2)]"
+						style={{ background: avatarBackground }}
 					>
 						{asset.name.slice(0, 2)}
 					</AvatarFallback>

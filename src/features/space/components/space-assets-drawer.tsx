@@ -1,18 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "@/i18n/navigation";
-import { ChevronDown, ExternalLink, Move, Save } from "lucide-react";
+import { ChevronDown, Move, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { spacePath } from "@/paths";
 import { Button } from "@/components/ui/button";
 import { MainContainer } from "@/components/space/main-container";
 import { DraggableWrap } from "@/components/space/draggable-wrap";
 import { useListenSpace } from "@/components/space/hooks/use-listen-space";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuSub,
+	ContextMenuSubContent,
+	ContextMenuSubTrigger,
+	ContextMenuTrigger,
+	ContextMenuSeparator,
+} from "@/components/ui/context-menu";
 import { AssetCard } from "@/components/assets/assets-card";
 import { AssetDetailDrawer } from "@/components/assets/asset-detail-drawer";
+import { ArrowRightToLine, Trash2 } from "lucide-react";
 import { getSpaceAssets } from "@/features/space/actions/get-space-assets";
 import { updateAssetPositions } from "@/features/space/actions/update-asset-position";
+import { moveAssetToSpace } from "@/features/space/actions/move-asset-to-space";
+import { deleteAsset } from "@/features/space/actions/delete-asset";
 import type { DragEndEvent } from "@dnd-kit/core";
 import type { Viewport } from "@/components/space/types";
 import type { Prisma } from "@/generated/prisma/client";
@@ -47,12 +58,16 @@ type AssetItem = Prisma.AssetGetPayload<{
 	};
 }>;
 
+type OtherSpace = { id: string; name: string };
+
 type SpaceAssetsDrawerProps = {
 	spaceId: string | null;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	/** 打开时聚焦到此物品：居中显示并打开详情 */
 	focusAssetId?: string | null;
+	/** 其他空间列表，用于「移动至」子菜单（不包含当前空间） */
+	otherSpaces?: OtherSpace[];
 };
 
 export function SpaceAssetsDrawer({
@@ -60,8 +75,8 @@ export function SpaceAssetsDrawer({
 	open,
 	onOpenChange,
 	focusAssetId,
+	otherSpaces = [],
 }: SpaceAssetsDrawerProps) {
-	const router = useRouter();
 	const [heightVh, setHeightVh] = useState(HEIGHT_DEFAULT_VH);
 	const [isResizing, setIsResizing] = useState(false);
 	const [data, setData] = useState<{ spaceName: string; assets: AssetItem[] } | null>(null);
@@ -155,14 +170,37 @@ export function SpaceAssetsDrawer({
 		};
 	}, [isResizing]);
 
-	const goToSpace = useCallback(() => {
-		if (spaceId) {
-			onOpenChange(false);
-			router.push(spacePath(spaceId));
-		}
-	}, [spaceId, onOpenChange, router]);
+	// 抽屉内右键空白不出现「新建物品」等，仅阻止冒泡与默认菜单
+	const handleDrawerRootContextMenu = useCallback((e: React.MouseEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+	}, []);
 
-	// 与详情页一致：仅编辑模式下拖拽生效，只更新本地；保存由「保存」按钮统一写库
+	const handleMoveAssetToSpace = useCallback(
+		async (assetId: string, toSpaceId: string) => {
+			if (!spaceId) return;
+			const res = await moveAssetToSpace(assetId, spaceId, toSpaceId);
+			if (res.status === "SUCCESS") {
+				setAssets((prev) => prev.filter((a) => a.id !== assetId));
+				setSelectedAsset((prev) => (prev?.id === assetId ? null : prev));
+			}
+		},
+		[spaceId]
+	);
+
+	const handleDeleteAsset = useCallback(
+		async (assetId: string) => {
+			if (!spaceId) return;
+			const res = await deleteAsset(spaceId, assetId);
+			if (res.status === "SUCCESS") {
+				setAssets((prev) => prev.filter((a) => a.id !== assetId));
+				setSelectedAsset((prev) => (prev?.id === assetId ? null : prev));
+			}
+		},
+		[spaceId]
+	);
+
+	// 与详情页一致：仅编辑模式下拖拽生效，只更新本地；保存由「保存布局」按钮统一写库
 	const onDragEnd = useCallback(
 		(e: DragEndEvent) => {
 			if (!isEditMode) return;
@@ -206,7 +244,7 @@ export function SpaceAssetsDrawer({
 			{/* 抽屉有多大，拖拽出来的高度就渲染多大；内容区为可拖拽的空间视图；relative 供详情面板固定在抽屉右上角 */}
 			<div
 				className={cn(
-					"fixed inset-x-0 bottom-0 z-50 flex min-h-0 flex-col rounded-t-2xl border-t border-border bg-background shadow-[0_-8px_30px_rgba(0,0,0,0.12)]",
+					"fixed inset-x-0 bottom-0 z-50 flex min-h-0 flex-col rounded-t-2xl border-t border-border bg-background/95 backdrop-blur-sm shadow-[0_-8px_30px_rgba(0,0,0,0.12)]",
 					"transition-transform duration-300 ease-out",
 					open ? "translate-y-0" : "translate-y-full"
 				)}
@@ -215,7 +253,7 @@ export function SpaceAssetsDrawer({
 					maxHeight: `${HEIGHT_MAX_VH}vh`,
 				}}
 			>
-				{/* 顶部：拖拽条 + 标题 + 进入空间 + 收起 */}
+				{/* 顶部：拖拽条 + 修改布局/保存布局 + 标题 + 收起(右) */}
 				<div className="flex shrink-0 flex-col gap-2 border-b border-border px-4 pb-2 pt-2">
 					<button
 						type="button"
@@ -230,49 +268,43 @@ export function SpaceAssetsDrawer({
 						<span className="block h-1.5 w-12 rounded-full bg-muted-foreground/30" />
 					</button>
 					<div className="flex flex-wrap items-center justify-between gap-2">
-						<span className="truncate text-lg font-semibold">
-							{data?.spaceName ?? (loading ? "加载中…" : "空间视图")}
-						</span>
-						<div className="flex items-center gap-2">
-							{/* 与详情页一致：限制拖拽的按钮，默认不可拖拽，点「移动」后可拖拽，点「保存」写库并退出 */}
+						<div className="flex items-center gap-2 min-w-0 flex-1">
+							<span className="truncate text-lg font-semibold">
+								{data?.spaceName ?? (loading ? "加载中…" : "空间视图")}
+							</span>
+							{/* 靠着名字右侧，留一点 margin */}
 							{data && assets.length > 0 && (isEditMode ? (
 								<Button
 									variant="default"
 									size="sm"
 									onClick={handleSavePositions}
-									className="gap-1.5"
+									className="gap-1.5 shrink-0 ml-1"
 								>
 									<Save className="size-4" />
-									保存
+									保存布局
 								</Button>
 							) : (
 								<Button
 									variant="outline"
 									size="sm"
 									onClick={() => setIsEditMode(true)}
-									className="gap-1.5"
+									className="gap-1.5 shrink-0 ml-1"
 								>
 									<Move className="size-4" />
-									移动
+									修改布局
 								</Button>
 							))}
-							{spaceId && (
-								<Button variant="outline" size="sm" onClick={goToSpace} className="gap-1">
-									<ExternalLink className="size-4" />
-									进入空间
-								</Button>
-							)}
-							<Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="gap-1">
-								<ChevronDown className="size-4" />
-								收起
-							</Button>
 						</div>
+						<Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="gap-1 shrink-0">
+							<ChevronDown className="size-4" />
+							收起
+						</Button>
 					</div>
 				</div>
-				{/* 空间视图：可拖拽画布，随抽屉高度填充 */}
+				{/* 空间视图：可拖拽画布，随抽屉高度填充；留外边距不贴边 */}
 				<div
 					ref={contentWrapperRef}
-					className="min-h-0 flex-1 overflow-hidden"
+					className="min-h-0 flex-1 overflow-hidden p-3"
 					style={{ minHeight: 0 }}
 				>
 					{loading && !data && (
@@ -286,11 +318,13 @@ export function SpaceAssetsDrawer({
 						</div>
 					)}
 					{!loading && data && assets.length > 0 && (
-						<MainContainer
-							className="h-full w-full"
+						<div className="drawer-canvas-3d h-full w-full rounded-xl overflow-hidden border border-border/90 bg-background/40">
+							<MainContainer
+								className="h-full w-full rounded-xl border-0"
 							onDragEnd={onDragEnd}
 							viewport={viewport}
 							onViewportChange={setViewport}
+							onContextMenu={handleDrawerRootContextMenu}
 							spaceDown={spaceDown}
 						>
 							{assets.map((asset) => (
@@ -306,23 +340,61 @@ export function SpaceAssetsDrawer({
 									disabled={!isEditMode || spaceDown}
 								>
 									{(dragHandleProps) => (
-										<AssetCard
-											asset={asset}
-											canResize={isEditMode}
-											dragHandleProps={dragHandleProps}
-											onResizeEnd={(w, h) => {
-												setAssets((prev) =>
-													prev.map((a) =>
-														a.id === asset.id ? { ...a, width: w, height: h } : a
-													)
-												);
-											}}
-											onCardClick={(a) => setSelectedAsset(a)}
-										/>
+										<ContextMenu>
+											<ContextMenuTrigger asChild>
+												<div data-context-menu-handled>
+													<AssetCard
+														asset={asset}
+														canResize={isEditMode}
+														dragHandleProps={dragHandleProps}
+														onResizeEnd={(w, h) => {
+															setAssets((prev) =>
+																prev.map((a) =>
+																	a.id === asset.id ? { ...a, width: w, height: h } : a
+																)
+															);
+														}}
+														onCardClick={!isEditMode ? (a) => setSelectedAsset(a) : undefined}
+														isSelected={selectedAsset?.id === asset.id}
+													/>
+												</div>
+											</ContextMenuTrigger>
+											<ContextMenuContent>
+												<ContextMenuSub>
+													<ContextMenuSubTrigger>
+														<ArrowRightToLine className="size-4" />
+														移动至
+													</ContextMenuSubTrigger>
+													<ContextMenuSubContent>
+														{otherSpaces.length === 0 ? (
+															<ContextMenuItem disabled>暂无其他空间</ContextMenuItem>
+														) : (
+															otherSpaces.map((s) => (
+																<ContextMenuItem
+																	key={s.id}
+																	onClick={() => handleMoveAssetToSpace(asset.id, s.id)}
+																>
+																	{s.name}
+																</ContextMenuItem>
+															))
+														)}
+													</ContextMenuSubContent>
+												</ContextMenuSub>
+												<ContextMenuSeparator />
+												<ContextMenuItem
+													variant="destructive"
+													onClick={() => handleDeleteAsset(asset.id)}
+												>
+													<Trash2 className="size-4" />
+													删除
+												</ContextMenuItem>
+											</ContextMenuContent>
+										</ContextMenu>
 									)}
 								</DraggableWrap>
 							))}
-						</MainContainer>
+							</MainContainer>
+						</div>
 					)}
 </div>
 			</div>

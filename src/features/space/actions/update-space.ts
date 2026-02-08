@@ -46,7 +46,6 @@ export async function updateSpace(
 
 		const locale = await getLocale();
 		revalidatePath(`/${locale}/spaces`);
-		revalidatePath(`/${locale}/spaces/${data.spaceId}`);
 
 		return toActionState("SUCCESS", "空间已更新", formData);
 	} catch (error) {

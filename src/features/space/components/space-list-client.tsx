@@ -2,10 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
-import { Link } from "@/i18n/navigation";
 import { Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { spacePath } from "@/paths";
 import { SpaceCard } from "./space-card";
 import { EditSpaceDialog, type SpaceForEdit } from "./edit-space-dialog";
 import {
@@ -82,21 +80,19 @@ function SortableSpaceItem({
 			{...listeners}
 		>
 			{/* 拖拽中：整项 invisible 占位不绘制，避免原位置多出一块背景；由 DragOverlay 显示预览 */}
-			<Link
-				href={spacePath(space.id)}
-				onClick={(e) => {
+			<button
+				type="button"
+				onClick={() => {
 					if (didDragRef.current) {
-						e.preventDefault();
 						didDragRef.current = false;
 						return;
 					}
-					e.preventDefault();
 					onSpaceClick(space.id);
 				}}
-				className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				className="block w-full rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 			>
 				<SpaceCard name={space.name} description={space.description} />
-			</Link>
+			</button>
 		</div>
 	);
 }
@@ -270,6 +266,7 @@ export function SpaceListClient({
 					}
 				}}
 				focusAssetId={focusAssetId}
+				otherSpaces={drawerSpaceId ? spaces.filter((s) => s.id !== drawerSpaceId).map((s) => ({ id: s.id, name: s.name })) : []}
 			/>
 
 			{contextMenu.open && contextMenu.space && (

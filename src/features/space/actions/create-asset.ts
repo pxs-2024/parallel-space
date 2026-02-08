@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getLocale } from "next-intl/server";
 import { ActionState, toActionState, fromErrorToActionState } from "@/components/form/utils/to-action-state";
 import { AssetKind } from "@/generated/prisma/client";
-import { spacePath } from "@/paths";
+import { spacesPath } from "@/paths";
 
 const createAssetSchema = z.object({
 	name: z.string().min(1, "名称不能为空").max(191, "名称不能超过191个字符"),
@@ -131,13 +131,8 @@ export async function createAsset(
 			data: assetData as any,
 		});
 
-		// 重新验证页面数据（包含 locale 前缀）
 		const locale = await getLocale();
-		console.log(`/${locale}${spacePath(spaceId)}`,'+++++++>');
-		// 重新验证所有相关路径 - 使用 layout 类型以确保所有相关数据都被刷新
-		// revalidatePath(`/${locale}/spaces/${spaceId}`, "layout");
-		// 也重新验证页面级别
-		revalidatePath(`/${locale}${spacePath(spaceId)}`);
+		revalidatePath(`/${locale}${spacesPath()}`);
 
 		return toActionState("SUCCESS", "物品创建成功", formData);
 	} catch (error) {

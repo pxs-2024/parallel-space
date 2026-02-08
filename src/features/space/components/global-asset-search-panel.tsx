@@ -164,7 +164,7 @@ export function GlobalAssetSearchPanel({
 	);
 
 	return (
-		<div className="flex min-h-0 w-80 shrink-0 max-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-xl border border-border bg-card/50 self-start shadow-sm">
+		<div className="flex min-h-0 w-80 shrink-0 max-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-xl border border-border bg-card/50 self-start shadow-sm" data-context-menu-handled>
 			<GlobalSearchFiltersBar
 				draft={draft}
 				onDraftChange={handleDraftChange}
@@ -175,10 +175,10 @@ export function GlobalAssetSearchPanel({
 			<div className="scrollbar-hide min-h-0 flex-1 overflow-auto p-4">
 				<ul className="flex flex-col gap-3">
 					{paginatedItems.map((asset) => (
-						<li key={asset.id}>
+						<li key={asset.id} className="list-none">
 							<ContextMenu>
 								<ContextMenuTrigger asChild>
-									<div>
+									<div className="block w-full outline-none rounded-xl" data-context-menu-handled>
 										<AssetCardHorizontal
 											asset={asset}
 											nameOnly
@@ -187,9 +187,9 @@ export function GlobalAssetSearchPanel({
 										/>
 									</div>
 								</ContextMenuTrigger>
-								<ContextMenuContent>
+								<ContextMenuContent className="min-w-40" align="start" sideOffset={4}>
 									<ContextMenuItem onClick={() => handleJumpToSpace(asset)}>
-										<ExternalLink className="size-4" />
+										<ExternalLink className="size-4 shrink-0" />
 										跳转空间
 									</ContextMenuItem>
 								</ContextMenuContent>

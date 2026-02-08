@@ -75,27 +75,41 @@ function getKindConfig(kind: AssetKind) {
 	}
 }
 
+const NARROW_CARD_WIDTH = 100; // 低于此宽度时名称竖排
+
 type AssetCardDragContentProps = {
 	asset: AssetForDrag;
 	/** 仅展示名字（详情在点击后于右上角抽屉显示） */
 	nameOnly?: boolean;
+	/** 卡片宽度（px），用于窄时竖排名称 */
+	cardWidth?: number;
 };
 
-export function AssetCardDragContent({ asset, nameOnly = false }: AssetCardDragContentProps) {
+export function AssetCardDragContent({ asset, nameOnly = false, cardWidth }: AssetCardDragContentProps) {
 	if (nameOnly) {
 		const hasCustomColor = asset.cardColor != null && asset.cardColor !== "";
 		const opacity = asset.cardOpacity != null ? Math.max(0, Math.min(1, Number(asset.cardOpacity))) : 0.2;
 		const background = hasCustomColor
 			? `linear-gradient(135deg, ${hexToRgba(asset.cardColor!, 0)} 0%, ${hexToRgba(asset.cardColor!, opacity)} 100%)`
 			: getTransparentCardGradient(asset.name);
+		const isNarrow = cardWidth != null && cardWidth < NARROW_CARD_WIDTH;
 		return (
 			<div
-				className="flex h-full w-full flex-col items-center justify-center rounded-3xl p-3"
+				className="flex h-full w-full flex-col items-center justify-center rounded-xl p-3"
 				style={{ background }}
 			>
-				<span className="truncate max-w-full text-center text-sm font-semibold text-foreground">
-					{asset.name}
-				</span>
+				{isNarrow ? (
+					<span
+						className="inline-flex items-center justify-center text-sm font-semibold text-foreground [writing-mode:vertical-rl] [text-orientation:upright]"
+						style={{ letterSpacing: "0.1em" }}
+					>
+						{asset.name}
+					</span>
+				) : (
+					<span className="truncate max-w-full text-center text-sm font-semibold text-foreground">
+						{asset.name}
+					</span>
+				)}
 			</div>
 		);
 	}
@@ -130,13 +144,13 @@ export function AssetCardDragContent({ asset, nameOnly = false }: AssetCardDragC
 		<div className="group/card relative flex h-full w-full flex-col items-center justify-center overflow-visible">
 			<div
 				className={cn(
-					"flex h-full w-full flex-col items-center justify-center gap-2 rounded-3xl border border-border/80 bg-card/95 p-4 shadow-sm transition-all duration-200",
+					"flex h-full w-full flex-col items-center justify-center gap-2 rounded-xl border border-border/80 bg-card/95 p-4 shadow-sm transition-all duration-200",
 					config.bg
 				)}
 			>
-				<Avatar className="h-14 w-14 shrink-0 ring-2 ring-background/60 transition-transform duration-200 group-hover/card:scale-105">
+				<Avatar className="h-[4.25rem] w-[4.25rem] shrink-0 ring-2 ring-background/60 transition-transform duration-200 group-hover/card:scale-105">
 					<AvatarFallback
-						className="font-geely text-base font-medium text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.25)]"
+						className="font-geely text-base font-medium text-white p-1 [text-shadow:0_1px_2px_rgba(0,0,0,0.25)]"
 						style={{ background: getAvatarGradient(asset.name) }}
 					>
 						{asset.name.slice(0, 2)}
