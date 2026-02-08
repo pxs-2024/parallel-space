@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SpaceListDrawer } from "./space-list-drawer";
@@ -22,6 +23,7 @@ export function SpaceDetailLayout({
 	currentSpaceId,
 	children,
 }: SpaceDetailLayoutProps) {
+	const t = useTranslations("space");
 	const [drawerOpen, setDrawerOpen] = useState(false);
 
 	return (
@@ -40,10 +42,10 @@ export function SpaceDetailLayout({
 					"transition-opacity duration-200",
 					drawerOpen && "pointer-events-none opacity-0"
 				)}
-				aria-label="打开空间列表"
+				aria-label={t("openListAria")}
 			>
 				<LayoutGrid className="size-4" />
-				空间列表
+				{t("listTitle")}
 			</button>
 
 			<SpaceListDrawer

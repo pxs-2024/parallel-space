@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { FolderPlus } from "lucide-react";
 import { CreateSpaceDialog } from "./create-space-dialog";
@@ -15,6 +16,7 @@ const menuItemClass =
 
 export function SpacesPageClient({ children }: SpacesPageClientProps) {
 	const router = useRouter();
+	const t = useTranslations("space");
 	const [contextMenu, setContextMenu] = useState<{
 		open: boolean;
 		x: number;
@@ -99,7 +101,7 @@ export function SpacesPageClient({ children }: SpacesPageClientProps) {
 							onClick={handleCreateSpace}
 						>
 							<FolderPlus className="text-muted-foreground" />
-							新建空间
+							{t("newSpace")}
 						</button>
 					</div>
 				</>

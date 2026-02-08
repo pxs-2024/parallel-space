@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,33 +18,33 @@ import {
 } from "../search-params";
 
 const KIND_OPTIONS = [
-	{ value: "", label: "全部种类" },
-	{ value: "STATIC", label: "静态" },
-	{ value: "CONSUMABLE", label: "消耗型" },
-	{ value: "TEMPORAL", label: "时间型" },
-	{ value: "VIRTUAL", label: "虚拟型" },
+	{ value: "", labelKey: "allKinds" as const },
+	{ value: "STATIC", labelKey: "kindStatic" as const },
+	{ value: "CONSUMABLE", labelKey: "kindConsumable" as const },
+	{ value: "TEMPORAL", labelKey: "kindTemporal" as const },
+	{ value: "VIRTUAL", labelKey: "kindVirtual" as const },
 ] as const;
 
 const STATE_OPTIONS = [
-	{ value: "", label: "全部状态" },
-	{ value: "ACTIVE", label: "在用" },
-	{ value: "PENDING_RESTOCK", label: "待补充" },
-	{ value: "PENDING_DISCARD", label: "待废弃" },
-	{ value: "ARCHIVED", label: "已归档" },
-	{ value: "DISCARDED", label: "已废弃" },
+	{ value: "", labelKey: "allStates" as const },
+	{ value: "ACTIVE", labelKey: "stateActive" as const },
+	{ value: "PENDING_RESTOCK", labelKey: "statePendingRestock" as const },
+	{ value: "PENDING_DISCARD", labelKey: "statePendingDiscard" as const },
+	{ value: "ARCHIVED", labelKey: "stateArchived" as const },
+	{ value: "DISCARDED", labelKey: "stateDiscarded" as const },
 ] as const;
 
-const SORT_LABELS: Record<(typeof LIST_SORT_FIELDS)[number], string> = {
-	createdAt: "创建时间",
-	name: "名称",
-	kind: "种类",
-	state: "状态",
-	quantity: "数量",
+const SORT_KEYS: Record<(typeof LIST_SORT_FIELDS)[number], string> = {
+	createdAt: "sortCreatedAt",
+	name: "sortName",
+	kind: "sortKind",
+	state: "sortState",
+	quantity: "sortQuantity",
 };
 
-const ORDER_LABELS: Record<(typeof LIST_ORDER)[number], string> = {
-	asc: "升序",
-	desc: "降序",
+const ORDER_KEYS: Record<(typeof LIST_ORDER)[number], string> = {
+	asc: "asc",
+	desc: "desc",
 };
 
 type SpaceItem = { id: string; name: string };
@@ -63,6 +64,8 @@ export function GlobalSearchFiltersBar({
 	onReset,
 	spaces,
 }: GlobalSearchFiltersBarProps) {
+	const t = useTranslations("filters");
+	const tAsset = useTranslations("asset");
 	const selectClass = "h-9 w-full min-w-0";
 	return (
 		<div className="flex shrink-0 flex-col gap-3 border-b border-border bg-muted/20 px-4 py-3">
@@ -71,7 +74,7 @@ export function GlobalSearchFiltersBar({
 				<div className="relative min-w-0 flex-1">
 					<Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
-						placeholder="搜索名称或描述..."
+						placeholder={t("searchPlaceholder")}
 						value={draft.q}
 						onChange={(e) => onDraftChange({ q: e.target.value })}
 						className="h-9 pl-8"
@@ -80,10 +83,10 @@ export function GlobalSearchFiltersBar({
 				</div>
 				<div className="flex shrink-0 gap-2">
 					<Button size="sm" className="h-9 w-14 shrink-0" onClick={onSearch}>
-						搜索
+						{t("search")}
 					</Button>
 					<Button size="sm" variant="outline" className="h-9 w-14 shrink-0" onClick={onReset}>
-						重置
+						{t("reset")}
 					</Button>
 				</div>
 			</div>
@@ -97,10 +100,10 @@ export function GlobalSearchFiltersBar({
 					}
 				>
 					<SelectTrigger className={selectClass}>
-						<SelectValue placeholder="空间" />
+						<SelectValue placeholder={t("space")} />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="__all__">全部空间</SelectItem>
+						<SelectItem value="__all__">{t("allSpaces")}</SelectItem>
 						{spaces.map((s) => (
 							<SelectItem key={s.id} value={s.id}>
 								{s.name}
@@ -115,13 +118,12 @@ export function GlobalSearchFiltersBar({
 					}
 				>
 					<SelectTrigger className={selectClass}>
-						<SelectValue placeholder="种类" />
+						<SelectValue placeholder={t("kind")} />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="__all__">{KIND_OPTIONS[0].label}</SelectItem>
-						{KIND_OPTIONS.slice(1).map((opt) => (
-							<SelectItem key={opt.value} value={opt.value}>
-								{opt.label}
+						{KIND_OPTIONS.map((opt) => (
+							<SelectItem key={opt.value || "__all__"} value={opt.value || "__all__"}>
+								{t(opt.labelKey)}
 							</SelectItem>
 						))}
 					</SelectContent>
@@ -133,13 +135,12 @@ export function GlobalSearchFiltersBar({
 					}
 				>
 					<SelectTrigger className={selectClass}>
-						<SelectValue placeholder="状态" />
+						<SelectValue placeholder={t("state")} />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="__all__">{STATE_OPTIONS[0].label}</SelectItem>
-						{STATE_OPTIONS.slice(1).map((opt) => (
-							<SelectItem key={opt.value} value={opt.value}>
-								{opt.label}
+						{STATE_OPTIONS.map((opt) => (
+							<SelectItem key={opt.value || "__all__"} value={opt.value || "__all__"}>
+								{opt.labelKey === "allStates" ? t("allStates") : tAsset(opt.labelKey)}
 							</SelectItem>
 						))}
 					</SelectContent>
@@ -153,12 +154,12 @@ export function GlobalSearchFiltersBar({
 						}
 					>
 						<SelectTrigger className={selectClass}>
-							<SelectValue placeholder="排序" />
+							<SelectValue placeholder={t("sort")} />
 						</SelectTrigger>
 						<SelectContent>
 							{LIST_SORT_FIELDS.map((field) => (
 								<SelectItem key={field} value={field}>
-									{SORT_LABELS[field]}
+									{t(SORT_KEYS[field])}
 								</SelectItem>
 							))}
 						</SelectContent>
@@ -175,7 +176,7 @@ export function GlobalSearchFiltersBar({
 						<SelectContent>
 							{LIST_ORDER.map((o) => (
 								<SelectItem key={o} value={o}>
-									{ORDER_LABELS[o]}
+									{t(ORDER_KEYS[o])}
 								</SelectItem>
 							))}
 						</SelectContent>

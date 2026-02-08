@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { ChevronDown, Move, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,10 @@ import { getSpaceAssets } from "@/features/space/actions/get-space-assets";
 import { updateAssetPositions } from "@/features/space/actions/update-asset-position";
 import { moveAssetToSpace } from "@/features/space/actions/move-asset-to-space";
 import { deleteAsset } from "@/features/space/actions/delete-asset";
+import {
+	TOP_DRAWER_HEIGHT_PX,
+	HEIGHT_SHOW_SPACE_DRAWER_VH,
+} from "./space-drawer-from-top";
 import type { DragEndEvent } from "@dnd-kit/core";
 import type { Viewport } from "@/components/space/types";
 import type { Prisma } from "@/generated/prisma/client";
@@ -68,6 +73,8 @@ type SpaceAssetsDrawerProps = {
 	focusAssetId?: string | null;
 	/** 其他空间列表，用于「移动至」子菜单（不包含当前空间） */
 	otherSpaces?: OtherSpace[];
+	/** 抽屉高度变化时回调（vh），用于在父组件中根据高度显示顶部空间抽屉等 */
+	onHeightChange?: (heightVh: number) => void;
 };
 
 export function SpaceAssetsDrawer({
@@ -76,6 +83,7 @@ export function SpaceAssetsDrawer({
 	onOpenChange,
 	focusAssetId,
 	otherSpaces = [],
+	onHeightChange,
 }: SpaceAssetsDrawerProps) {
 	const [heightVh, setHeightVh] = useState(HEIGHT_DEFAULT_VH);
 	const [isResizing, setIsResizing] = useState(false);
@@ -86,9 +94,18 @@ export function SpaceAssetsDrawer({
 	const [isEditMode, setIsEditMode] = useState(false);
 	const [selectedAsset, setSelectedAsset] = useState<AssetItem | null>(null);
 	const { spaceDown } = useListenSpace();
+	const t = useTranslations("drawer");
 	const startYRef = useRef(0);
 	const startHeightRef = useRef(0);
 	const contentWrapperRef = useRef<HTMLDivElement>(null);
+	const drawerRef = useRef<HTMLDivElement>(null);
+	const lastHeightVhRef = useRef(0);
+
+	// 根据当前高度是否≥顶部抽屉出现阈值，决定最大高度（避免与顶部抽屉重叠）
+	const effectiveMaxHeightCss =
+		heightVh >= HEIGHT_SHOW_SPACE_DRAWER_VH
+			? `calc(100vh - ${TOP_DRAWER_HEIGHT_PX}px)`
+			: `${HEIGHT_MAX_VH}vh`;
 
 	// 打开抽屉且 spaceId 存在时拉取该空间物品（含 x,y 用于空间视图）；切换空间或关闭时重置编辑状态
 	useEffect(() => {
@@ -150,25 +167,46 @@ export function SpaceAssetsDrawer({
 		setIsResizing(true);
 		startYRef.current = e.clientY;
 		startHeightRef.current = heightVh;
+		lastHeightVhRef.current = heightVh;
 	}, [heightVh]);
 
 	useEffect(() => {
 		if (!isResizing) return;
+		const el = drawerRef.current;
 		const onMove = (e: MouseEvent) => {
 			const dy = startYRef.current - e.clientY;
 			const vhPerPx = 100 / window.innerHeight;
 			let next = startHeightRef.current + dy * vhPerPx;
-			next = Math.max(HEIGHT_MIN_VH, Math.min(HEIGHT_MAX_VH, next));
-			setHeightVh(next);
+			// 一旦拖拽到的高度≥50vh（会露出顶部抽屉），就按「留出顶部抽屉高度」的上限来限制，拖拽时即生效
+			const wouldShowTopDrawer = next >= HEIGHT_SHOW_SPACE_DRAWER_VH;
+			const effectiveMaxVh = wouldShowTopDrawer
+				? 100 - (TOP_DRAWER_HEIGHT_PX / window.innerHeight) * 100
+				: HEIGHT_MAX_VH;
+			next = Math.max(HEIGHT_MIN_VH, Math.min(effectiveMaxVh, next));
+			lastHeightVhRef.current = next;
+			if (el) {
+				const maxCss = wouldShowTopDrawer
+					? `calc(100vh - ${TOP_DRAWER_HEIGHT_PX}px)`
+					: `${HEIGHT_MAX_VH}vh`;
+				el.style.height = `min(${next}vh, ${maxCss})`;
+				el.style.maxHeight = maxCss;
+			}
 		};
-		const onUp = () => setIsResizing(false);
-		document.addEventListener("mousemove", onMove);
+		const onUp = () => {
+			setHeightVh(lastHeightVhRef.current);
+			setIsResizing(false);
+		};
+		document.addEventListener("mousemove", onMove, { passive: true });
 		document.addEventListener("mouseup", onUp);
 		return () => {
 			document.removeEventListener("mousemove", onMove);
 			document.removeEventListener("mouseup", onUp);
 		};
 	}, [isResizing]);
+
+	useEffect(() => {
+		onHeightChange?.(open ? heightVh : 0);
+	}, [open, heightVh, onHeightChange]);
 
 	// 抽屉内右键空白不出现「新建物品」等，仅阻止冒泡与默认菜单
 	const handleDrawerRootContextMenu = useCallback((e: React.MouseEvent) => {
@@ -241,20 +279,21 @@ export function SpaceAssetsDrawer({
 					onClick={() => onOpenChange(false)}
 				/>
 			)}
-			{/* 抽屉有多大，拖拽出来的高度就渲染多大；内容区为可拖拽的空间视图；relative 供详情面板固定在抽屉右上角 */}
+			{/* 抽屉有多大，拖拽出来的高度就渲染多大；拖拽时直接改 DOM 不 setState，松手再同步 state，避免卡顿 */}
 			<div
+				ref={drawerRef}
 				className={cn(
 					"fixed inset-x-0 bottom-0 z-50 flex min-h-0 flex-col rounded-t-2xl border-t border-border bg-background/95 backdrop-blur-sm shadow-[0_-8px_30px_rgba(0,0,0,0.12)]",
 					"transition-transform duration-300 ease-out",
 					open ? "translate-y-0" : "translate-y-full"
 				)}
 				style={{
-					height: `min(${heightVh}vh, ${HEIGHT_MAX_VH}vh)`,
-					maxHeight: `${HEIGHT_MAX_VH}vh`,
+					height: `min(${heightVh}vh, ${effectiveMaxHeightCss})`,
+					maxHeight: effectiveMaxHeightCss,
 				}}
 			>
-				{/* 顶部：拖拽条 + 修改布局/保存布局 + 标题 + 收起(右) */}
-				<div className="flex shrink-0 flex-col gap-2 border-b border-border px-4 pb-2 pt-2">
+				{/* 顶部：拖拽条 + 修改布局/保存布局 + 标题 + 收起(右)；顶部无留白与上抽屉贴齐 */}
+				<div className="flex shrink-0 flex-col gap-2 border-b border-border px-4 pt-0 pb-2">
 					<button
 						type="button"
 						onMouseDown={handleResizeStart}
@@ -263,14 +302,14 @@ export function SpaceAssetsDrawer({
 							"hover:bg-muted/80 active:bg-muted",
 							isResizing && "bg-muted"
 						)}
-						aria-label="拖动调整高度"
+						aria-label={t("resizeHandle")}
 					>
 						<span className="block h-1.5 w-12 rounded-full bg-muted-foreground/30" />
 					</button>
 					<div className="flex flex-wrap items-center justify-between gap-2">
 						<div className="flex items-center gap-2 min-w-0 flex-1">
 							<span className="truncate text-lg font-semibold">
-								{data?.spaceName ?? (loading ? "加载中…" : "空间视图")}
+								{data?.spaceName ?? (loading ? t("loading") : t("spaceView"))}
 							</span>
 							{/* 靠着名字右侧，留一点 margin */}
 							{data && assets.length > 0 && (isEditMode ? (
@@ -281,7 +320,7 @@ export function SpaceAssetsDrawer({
 									className="gap-1.5 shrink-0 ml-1"
 								>
 									<Save className="size-4" />
-									保存布局
+									{t("saveLayout")}
 								</Button>
 							) : (
 								<Button
@@ -291,13 +330,13 @@ export function SpaceAssetsDrawer({
 									className="gap-1.5 shrink-0 ml-1"
 								>
 									<Move className="size-4" />
-									修改布局
+									{t("editLayout")}
 								</Button>
 							))}
 						</div>
 						<Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="gap-1 shrink-0">
 							<ChevronDown className="size-4" />
-							收起
+							{t("collapse")}
 						</Button>
 					</div>
 				</div>
@@ -309,12 +348,12 @@ export function SpaceAssetsDrawer({
 				>
 					{loading && !data && (
 						<div className="flex h-full items-center justify-center text-muted-foreground">
-							加载中…
+							{t("loading")}
 						</div>
 					)}
 					{!loading && data && assets.length === 0 && (
 						<div className="flex h-full items-center justify-center text-muted-foreground">
-							该空间暂无物品
+							{t("noAssets")}
 						</div>
 					)}
 					{!loading && data && assets.length > 0 && (
@@ -363,11 +402,11 @@ export function SpaceAssetsDrawer({
 												<ContextMenuSub>
 													<ContextMenuSubTrigger>
 														<ArrowRightToLine className="size-4" />
-														移动至
+														{t("moveTo")}
 													</ContextMenuSubTrigger>
 													<ContextMenuSubContent>
 														{otherSpaces.length === 0 ? (
-															<ContextMenuItem disabled>暂无其他空间</ContextMenuItem>
+															<ContextMenuItem disabled>{t("noOtherSpaces")}</ContextMenuItem>
 														) : (
 															otherSpaces.map((s) => (
 																<ContextMenuItem
@@ -386,7 +425,7 @@ export function SpaceAssetsDrawer({
 													onClick={() => handleDeleteAsset(asset.id)}
 												>
 													<Trash2 className="size-4" />
-													删除
+													{t("delete")}
 												</ContextMenuItem>
 											</ContextMenuContent>
 										</ContextMenu>

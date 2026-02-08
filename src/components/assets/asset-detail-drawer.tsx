@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Box, Package, Clock, Link2, ExternalLink, X, Palette, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KindBadge } from "./kind-badge";
@@ -56,15 +57,16 @@ function KindIcon({ kind, className }: { kind: string; className?: string }) {
 	return <Icon className={className} />;
 }
 
-function getStateLabel(state: string): string {
-	const map: Record<string, string> = {
-		ACTIVE: "在用",
-		PENDING_RESTOCK: "待补充",
-		PENDING_DISCARD: "待废弃",
-		ARCHIVED: "已归档",
-		DISCARDED: "已废弃",
-	};
-	return map[state] ?? state;
+const STATE_I18N_KEYS: Record<string, string> = {
+	ACTIVE: "stateActive",
+	PENDING_RESTOCK: "statePendingRestock",
+	PENDING_DISCARD: "statePendingDiscard",
+	ARCHIVED: "stateArchived",
+	DISCARDED: "stateDiscarded",
+};
+function getStateLabel(state: string, t: (key: string) => string): string {
+	const key = STATE_I18N_KEYS[state];
+	return key ? t(key) : state;
 }
 
 function getStateBadgeVariant(state: string): "muted" | "blue" | "amber" | "red" {
@@ -118,6 +120,7 @@ function AssetDetailDrawerContent({
 	onClose,
 	onUpdated,
 }: AssetDetailDrawerProps & { asset: AssetForDetail }) {
+	const t = useTranslations("asset");
 	const [editingColor, setEditingColor] = useState(false);
 	const [editColor, setEditColor] = useState(DEFAULT_CARD_COLOR);
 	const [editOpacity, setEditOpacity] = useState(20);
@@ -226,10 +229,10 @@ function AssetDetailDrawerContent({
 					style={{ right: "calc(1rem + 20rem + 0.5rem)" }}
 					onClick={(e) => e.stopPropagation()}
 				>
-					<p className="mb-2 text-xs font-medium text-muted-foreground">信息卡颜色</p>
+					<p className="mb-2 text-xs font-medium text-muted-foreground">{t("cardColor")}</p>
 					<div className="flex flex-col gap-2">
 						<div className="flex items-center gap-2">
-							<Label className="text-xs text-muted-foreground shrink-0 w-12">颜色</Label>
+							<Label className="text-xs text-muted-foreground shrink-0 w-12">{t("color")}</Label>
 							<input
 								type="color"
 								value={editColor || DEFAULT_CARD_COLOR}
@@ -245,7 +248,7 @@ function AssetDetailDrawerContent({
 							/>
 						</div>
 						<div className="flex items-center gap-2">
-							<Label className="text-xs text-muted-foreground shrink-0 w-12">透明度</Label>
+							<Label className="text-xs text-muted-foreground shrink-0 w-12">{t("opacity")}</Label>
 							<input
 								type="range"
 								min={0}
@@ -267,13 +270,13 @@ function AssetDetailDrawerContent({
 					</div>
 					<div className="mt-3 flex flex-wrap items-center gap-1 border-t border-border pt-3">
 						<Button variant="outline" size="sm" className="h-7" onClick={handleCancelColor}>
-							取消
+							{t("cancel")}
 						</Button>
 						<Button variant="ghost" size="sm" className="h-7 text-muted-foreground" onClick={handleUseDefaultColor}>
-							使用默认
+							{t("useDefault")}
 						</Button>
 						<Button size="sm" className="h-7" onClick={handleSaveColor}>
-							保存
+							{t("save")}
 						</Button>
 					</div>
 				</div>
@@ -281,8 +284,8 @@ function AssetDetailDrawerContent({
 			{/* 物品信息面板：始终右侧固定，不随调色盘扩展 */}
 			<div className="fixed right-4 bottom-4 z-50 w-80 max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex flex-col overflow-hidden rounded-xl border border-border bg-card/95 backdrop-blur-sm shadow-xl">
 				<div className="flex shrink-0 items-center justify-between border-b border-border bg-card px-4 py-2">
-					<span className="text-sm font-medium text-muted-foreground">物品信息</span>
-					<Button variant="ghost" size="icon" onClick={onClose} aria-label="关闭">
+					<span className="text-sm font-medium text-muted-foreground">{t("itemInfo")}</span>
+					<Button variant="ghost" size="icon" onClick={onClose} aria-label={t("close")}>
 						<X className="size-4" />
 					</Button>
 				</div>
@@ -305,15 +308,15 @@ function AssetDetailDrawerContent({
 											value={editName}
 											onChange={(e) => setEditName(e.target.value)}
 											className="h-9 rounded-md border border-input bg-background px-2 text-sm font-semibold"
-											placeholder="名称"
+											placeholder={t("namePlaceholder")}
 											autoFocus
 										/>
 										<div className="flex gap-1">
 											<Button size="sm" className="h-7" onClick={handleSaveName}>
-												保存
+												{t("save")}
 											</Button>
 											<Button variant="outline" size="sm" className="h-7" onClick={handleCancelName}>
-												取消
+												{t("cancel")}
 											</Button>
 										</div>
 									</div>
@@ -325,7 +328,7 @@ function AssetDetailDrawerContent({
 											size="sm"
 											className="h-7 w-7 p-0 text-muted-foreground"
 											onClick={openNameEditor}
-											aria-label="修改名称"
+											aria-label={t("edit")}
 										>
 											<Pencil className="size-3.5" />
 										</Button>
@@ -337,14 +340,14 @@ function AssetDetailDrawerContent({
 									</span>
 									<KindBadge kind={asset.kind} />
 									<Badge variant={getStateBadgeVariant(asset.state)}>
-										{getStateLabel(asset.state)}
+										{getStateLabel(asset.state, t)}
 									</Badge>
 								</div>
 							</div>
 						</div>
 						<div>
 							<div className="flex items-center justify-between gap-2 mb-1">
-								<p className="text-xs font-medium text-muted-foreground">描述</p>
+								<p className="text-xs font-medium text-muted-foreground">{t("description")}</p>
 								{!editingDesc ? (
 									<Button
 										variant="outline"
@@ -353,7 +356,7 @@ function AssetDetailDrawerContent({
 										onClick={openDescEditor}
 									>
 										<Pencil className="size-3.5" />
-										{asset.description != null && asset.description !== "" ? "修改" : "添加"}
+										{asset.description != null && asset.description !== "" ? t("edit") : t("add")}
 									</Button>
 								) : null}
 							</div>
@@ -363,15 +366,15 @@ function AssetDetailDrawerContent({
 										value={editDesc}
 										onChange={(e) => setEditDesc(e.target.value)}
 										className="min-h-20 rounded-md border border-input bg-background px-2 py-1.5 text-sm resize-y"
-										placeholder="选填"
+										placeholder={t("descPlaceholder")}
 										autoFocus
 									/>
 									<div className="flex gap-1">
 										<Button size="sm" className="h-7" onClick={handleSaveDesc}>
-											保存
+											{t("save")}
 										</Button>
 										<Button variant="outline" size="sm" className="h-7" onClick={handleCancelDesc}>
-											取消
+											{t("cancel")}
 										</Button>
 									</div>
 								</div>
@@ -383,18 +386,18 @@ function AssetDetailDrawerContent({
 						</div>
 						{(asset.quantity != null || asset.unit) && (
 							<div>
-								<p className="text-xs font-medium text-muted-foreground mb-1">数量</p>
+								<p className="text-xs font-medium text-muted-foreground mb-1">{t("quantity")}</p>
 								<p className="text-sm">
 									{qtyText}
 									{asset.reorderPoint != null && (
-										<span className="text-muted-foreground ml-2">补货线 {asset.reorderPoint}</span>
+										<span className="text-muted-foreground ml-2">{t("reorderLine")} {asset.reorderPoint}</span>
 									)}
 								</p>
 							</div>
 						)}
 						{(asset.nextDueAt ?? asset.dueAt ?? asset.expiresAt) && (
 							<div>
-								<p className="text-xs font-medium text-muted-foreground mb-1">到期</p>
+								<p className="text-xs font-medium text-muted-foreground mb-1">{t("due")}</p>
 								<p className="text-sm">
 									{formatDate(asset.nextDueAt ?? asset.dueAt ?? asset.expiresAt ?? null)}
 								</p>
@@ -402,7 +405,7 @@ function AssetDetailDrawerContent({
 						)}
 						{asset.refUrl && (
 							<div>
-								<p className="text-xs font-medium text-muted-foreground mb-1">链接</p>
+								<p className="text-xs font-medium text-muted-foreground mb-1">{t("link")}</p>
 								<a
 									href={asset.refUrl}
 									target="_blank"
@@ -416,7 +419,7 @@ function AssetDetailDrawerContent({
 						)}
 						<div className="min-h-9">
 							<div className="flex min-h-7 items-center justify-between">
-								<p className="text-xs font-medium text-muted-foreground">信息卡颜色</p>
+								<p className="text-xs font-medium text-muted-foreground">{t("cardColor")}</p>
 								{!editingColor ? (
 									<Button
 										variant="outline"
@@ -425,7 +428,7 @@ function AssetDetailDrawerContent({
 										onClick={openColorEditor}
 									>
 										<Palette className="size-3.5" />
-										修改
+										{t("edit")}
 									</Button>
 								) : (
 									<span className="h-7 w-14 shrink-0" aria-hidden />

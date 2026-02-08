@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SpaceCard } from "./space-card";
@@ -29,6 +30,7 @@ export function SpaceListDrawer({
 	open,
 	onOpenChange,
 }: SpaceListDrawerProps) {
+	const t = useTranslations("drawer");
 	const [heightVh, setHeightVh] = useState(DRAWER_HEIGHT_DEFAULT);
 	const [isResizing, setIsResizing] = useState(false);
 	const startYRef = useRef(0);
@@ -92,7 +94,7 @@ export function SpaceListDrawer({
 							"hover:bg-muted/80 active:bg-muted",
 							isResizing && "bg-muted"
 						)}
-						aria-label="拖动调整高度"
+						aria-label={t("resizeHandle")}
 					>
 						<span className="block h-1.5 w-12 rounded-full bg-muted-foreground/30" />
 					</button>
@@ -103,7 +105,7 @@ export function SpaceListDrawer({
 						className="gap-1"
 					>
 						<ChevronDown className="size-4" />
-						收起
+						{t("collapse")}
 					</Button>
 				</div>
 				{/* 空间列表：可滚动 */}

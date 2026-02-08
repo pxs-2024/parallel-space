@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useQueryStates } from "nuqs";
+import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ExternalLink } from "lucide-react";
 import { GlobalSearchFiltersBar } from "./global-search-filters-bar";
@@ -45,6 +46,7 @@ export function GlobalAssetSearchPanel({
 	spaces,
 	onJumpToSpace,
 }: GlobalAssetSearchPanelProps) {
+	const t = useTranslations("search");
 	const [appliedFilters, setQuery] = useQueryStates(
 		listSearchParsers,
 		listSearchOptions
@@ -190,7 +192,7 @@ export function GlobalAssetSearchPanel({
 								<ContextMenuContent className="min-w-40" align="start" sideOffset={4}>
 									<ContextMenuItem onClick={() => handleJumpToSpace(asset)}>
 										<ExternalLink className="size-4 shrink-0" />
-										跳转空间
+										{t("jumpToSpace")}
 									</ContextMenuItem>
 								</ContextMenuContent>
 							</ContextMenu>
@@ -199,7 +201,7 @@ export function GlobalAssetSearchPanel({
 				</ul>
 				{listItems.length === 0 && (
 					<div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
-						{assets.length === 0 ? "暂无物品" : "无匹配项"}
+						{assets.length === 0 ? t("noAssets") : t("noMatch")}
 					</div>
 				)}
 			</div>
@@ -207,10 +209,14 @@ export function GlobalAssetSearchPanel({
 			<div className="flex shrink-0 flex-col items-center gap-2 border-t border-border bg-muted/20 px-4 py-3">
 				<span className="text-muted-foreground text-xs">
 					{listItems.length === 0
-						? "共 0 项"
+						? t("pageTotal", { total: 0 })
 						: totalPages > 1
-							? `第 ${startIdx + 1}-${Math.min(startIdx + pageSize, listItems.length)} 项，共 ${listItems.length} 项`
-							: `共 ${listItems.length} 项`}
+							? t("pageRange", {
+									start: startIdx + 1,
+									end: Math.min(startIdx + pageSize, listItems.length),
+									total: listItems.length,
+								})
+							: t("pageTotal", { total: listItems.length })}
 				</span>
 				{totalPages > 1 && (
 					<div className="flex items-center gap-2">
@@ -220,7 +226,7 @@ export function GlobalAssetSearchPanel({
 							onClick={() => goToPage(page - 1)}
 							disabled={page <= 1}
 							className="h-8 w-8 p-0"
-							aria-label="上一页"
+							aria-label={t("prevPage")}
 						>
 							<ChevronLeft className="size-4" />
 						</Button>
@@ -233,7 +239,7 @@ export function GlobalAssetSearchPanel({
 							onClick={() => goToPage(page + 1)}
 							disabled={page >= totalPages}
 							className="h-8 w-8 p-0"
-							aria-label="下一页"
+							aria-label={t("nextPage")}
 						>
 							<ChevronRight className="size-4" />
 						</Button>
