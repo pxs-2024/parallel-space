@@ -33,9 +33,17 @@
   },
   "side": {
     "todo": "To-do",
-    "spaces": "Spaces",
+    "spaces": "Item Management",
     "history": "History",
     "account": "Account"
+  },
+  "page": {
+    "todoTitle": "To-do",
+    "todoDescription": "Process pending restock, remind, and discard",
+    "spacesTitle": "Item Management",
+    "spacesDescription": "Manage items by space, view and act",
+    "historyTitle": "History",
+    "historyDescription": "View processed restock, remind, and discard records"
   },
   "drawer": {
     "resizeHandle": "Drag to resize height",

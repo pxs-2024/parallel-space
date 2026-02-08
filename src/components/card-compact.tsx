@@ -4,18 +4,20 @@ type CardCompactProps = {
 	title: string;
 	description: string;
 	content?: React.ReactNode;
-	className: string;
+	className?: string;
 	footer?: React.ReactNode;
 };
 
-const CardCompact = ({ title, description, content, className, footer }: CardCompactProps) => {
+const CardCompact = ({ title, description, content, className = "", footer }: CardCompactProps) => {
 	return (
-		<Card className={className}>
+		<Card className={className || undefined}>
 			<CardHeader>
 				<CardTitle>{title}</CardTitle>
 				<CardDescription>{description}</CardDescription>
 			</CardHeader>
-			{content && <CardContent>{content}</CardContent>}
+			{content && (
+			<CardContent className="min-h-0 flex-1 overflow-auto">{content}</CardContent>
+		)}
 			{footer && <CardFooter>{footer}</CardFooter>}
 		</Card>
 	);

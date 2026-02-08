@@ -401,7 +401,7 @@ export function SpaceAssetsDrawer({
 																)
 															);
 														}}
-														onCardClick={!isEditMode ? (a) => setSelectedAsset(a) : undefined}
+														onCardClick={!isEditMode ? (a) => { const full = assets.find((x) => x.id === a.id); if (full) setSelectedAsset(full); } : undefined}
 														isSelected={selectedAsset?.id === asset.id}
 													/>
 												</div>

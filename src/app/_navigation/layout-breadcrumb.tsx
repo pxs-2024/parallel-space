@@ -26,8 +26,10 @@ function useBreadcrumbSegments(): BreadcrumbSegment[] {
 	const tAccount = useTranslations("account");
 	const tBreadcrumb = useTranslations("breadcrumb");
 
-	// 空间页面不显示面包屑（hooks 必须全部在条件 return 之前调用）
+	// 空间页、待办页、历史记录页不显示面包屑（hooks 必须全部在条件 return 之前调用）
 	if (pathname.startsWith("/spaces")) return [];
+	if (pathname.startsWith("/todo")) return [];
+	if (pathname.startsWith("/history")) return [];
 	if (NO_BREADCRUMB_PATHS.includes(pathname)) return [];
 
 	const segments = pathname.split("/").filter(Boolean);

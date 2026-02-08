@@ -203,7 +203,7 @@ export function GlobalAssetSearchPanel({
 										/>
 									</div>
 								</ContextMenuTrigger>
-								<ContextMenuContent className="min-w-40" align="start" sideOffset={4}>
+								<ContextMenuContent className="min-w-40">
 									<ContextMenuItem onClick={() => handleJumpToSpace(asset)}>
 										<ExternalLink className="size-4 shrink-0" />
 										{t("jumpToSpace")}

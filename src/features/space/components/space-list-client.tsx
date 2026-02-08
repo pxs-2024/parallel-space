@@ -10,6 +10,7 @@ import { EditSpaceDialog, type SpaceForEdit } from "./edit-space-dialog";
 import {
 	DndContext,
 	DragEndEvent,
+	DragStartEvent,
 	DragOverlay,
 	PointerSensor,
 	useSensor,
@@ -156,9 +157,9 @@ export function SpaceListClient({
 		})
 	);
 
-	const handleDragStart = useCallback((event: { active: { id: string } }) => {
+	const handleDragStart = useCallback((event: DragStartEvent) => {
 		didDragRef.current = true;
-		setActiveId(event.active.id);
+		setActiveId(event.active.id == null ? null : String(event.active.id));
 	}, []);
 
 	const handleDragEnd = useCallback(

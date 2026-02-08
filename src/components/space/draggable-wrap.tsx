@@ -45,7 +45,14 @@ const DraggableWrap = ({ position, viewportScale, children, onContextMenu, disab
 				zIndex: isDragging ? 9999 : 1,
 			}}
 		>
-			{children(disabled ? { listeners: {}, attributes: {} } : { listeners, attributes })}
+			{children(
+			disabled
+				? { listeners: {}, attributes: {} }
+				: {
+						listeners: (listeners ?? {}) as unknown as Record<string, unknown>,
+						attributes: (attributes ?? {}) as unknown as Record<string, unknown>,
+					}
+		)}
 		</div>
 	);
 };

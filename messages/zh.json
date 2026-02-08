@@ -33,9 +33,17 @@
   },
   "side": {
     "todo": "待办",
-    "spaces": "空间",
+    "spaces": "物品管理",
     "history": "历史记录",
     "account": "个人资料"
+  },
+  "page": {
+    "todoTitle": "待办",
+    "todoDescription": "处理待确认的补充、提醒与丢弃",
+    "spacesTitle": "物品管理",
+    "spacesDescription": "按空间管理物品，查看与操作",
+    "historyTitle": "历史记录",
+    "historyDescription": "查看已处理的补充、提醒与丢弃记录"
   },
   "drawer": {
     "resizeHandle": "拖动调整高度",
