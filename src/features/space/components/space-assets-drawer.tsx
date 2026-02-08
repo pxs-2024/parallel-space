@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/context-menu";
 import { AssetCard } from "@/components/assets/assets-card";
 import { AssetDetailDrawer } from "@/components/assets/asset-detail-drawer";
-import { ArrowRightToLine, Trash2 } from "lucide-react";
+import { CreateAssetDialog } from "@/features/space/components/create-asset-drawer";
+import { ArrowRightToLine, Package, Trash2 } from "lucide-react";
 import { getSpaceAssets } from "@/features/space/actions/get-space-assets";
 import { updateAssetPositions } from "@/features/space/actions/update-asset-position";
 import { moveAssetToSpace } from "@/features/space/actions/move-asset-to-space";
@@ -94,6 +95,18 @@ export function SpaceAssetsDrawer({
 	const [viewport, setViewport] = useState<Viewport>({ vx: 0, vy: 0, scale: 1 });
 	const [isEditMode, setIsEditMode] = useState(false);
 	const [selectedAsset, setSelectedAsset] = useState<AssetItem | null>(null);
+	const [rootMenu, setRootMenu] = useState<{
+		open: boolean;
+		x: number;
+		y: number;
+		worldX?: number;
+		worldY?: number;
+	}>({ open: false, x: 0, y: 0 });
+	const [createDialogOpen, setCreateDialogOpen] = useState(false);
+	/** 新建物品的初始位置（右键菜单处），打开对话框时写入，关闭时清空 */
+	const [createInitialPosition, setCreateInitialPosition] = useState<{ x: number; y: number } | null>(null);
+	const rootMenuRef = useRef<HTMLDivElement>(null);
+	const canvasWrapperRef = useRef<HTMLDivElement>(null);
 	const { spaceDown } = useListenSpace();
 	const t = useTranslations("drawer");
 	const startYRef = useRef(0);
@@ -209,11 +222,72 @@ export function SpaceAssetsDrawer({
 		onHeightChange?.(open ? heightVh : 0);
 	}, [open, heightVh, onHeightChange]);
 
-	// 抽屉内右键空白不出现「新建物品」等，仅阻止冒泡与默认菜单
-	const handleDrawerRootContextMenu = useCallback((e: React.MouseEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-	}, []);
+	// 抽屉内右键空白：显示「新建物品」菜单，并记下该点在画布中的世界坐标，新建物品将出现在此处
+	const handleDrawerRootContextMenu = useCallback(
+		(e: React.MouseEvent) => {
+			if ((e.target as HTMLElement).closest("[data-context-menu-handled]")) return;
+			e.preventDefault();
+			e.stopPropagation();
+			let worldX: number | undefined;
+			let worldY: number | undefined;
+			const canvasEl = canvasWrapperRef.current;
+			if (canvasEl) {
+				const rect = canvasEl.getBoundingClientRect();
+				worldX = (e.clientX - rect.left - viewport.vx) / viewport.scale;
+				worldY = (e.clientY - rect.top - viewport.vy) / viewport.scale;
+			} else {
+				// 空状态时用内容区中心附近作为默认位置
+				const wrapper = contentWrapperRef.current;
+				if (wrapper) {
+					const rect = wrapper.getBoundingClientRect();
+					const padding = 12; // p-3
+					worldX = (e.clientX - rect.left - padding - viewport.vx) / viewport.scale;
+					worldY = (e.clientY - rect.top - padding - viewport.vy) / viewport.scale;
+				}
+			}
+			setRootMenu({ open: true, x: e.clientX, y: e.clientY, worldX, worldY });
+		},
+		[viewport.vx, viewport.vy, viewport.scale]
+	);
+
+	// 点击空白或 Escape 关闭右键菜单
+	useEffect(() => {
+		if (!rootMenu.open) return;
+		const handleClickOutside = (e: MouseEvent) => {
+			if (rootMenuRef.current && !rootMenuRef.current.contains(e.target as Node)) {
+				setRootMenu((prev) => (prev.open ? { ...prev, open: false } : prev));
+			}
+		};
+		const handleEscape = (e: KeyboardEvent) => {
+			if (e.key === "Escape") setRootMenu((prev) => (prev.open ? { ...prev, open: false } : prev));
+		};
+		document.addEventListener("mousedown", handleClickOutside);
+		document.addEventListener("keydown", handleEscape);
+		return () => {
+			document.removeEventListener("mousedown", handleClickOutside);
+			document.removeEventListener("keydown", handleEscape);
+		};
+	}, [rootMenu.open]);
+
+	const handleOpenCreateDialog = useCallback(() => {
+		const worldX = rootMenu.worldX;
+		const worldY = rootMenu.worldY;
+		setRootMenu((prev) => (prev.open ? { ...prev, open: false } : prev));
+		setCreateInitialPosition(
+			typeof worldX === "number" && typeof worldY === "number" ? { x: Math.round(worldX), y: Math.round(worldY) } : null
+		);
+		setCreateDialogOpen(true);
+	}, [rootMenu.worldX, rootMenu.worldY]);
+
+	const handleCreateAssetSuccess = useCallback(() => {
+		if (!spaceId) return;
+		getSpaceAssets(spaceId).then((res) => {
+			if (res) {
+				setData(res);
+				setAssets(res.assets);
+			}
+		});
+	}, [spaceId]);
 
 	const handleMoveAssetToSpace = useCallback(
 		async (assetId: string, toSpaceId: string) => {
@@ -360,12 +434,18 @@ export function SpaceAssetsDrawer({
 						</div>
 					)}
 					{!loading && data && assets.length === 0 && (
-						<div className="flex h-full items-center justify-center text-muted-foreground">
+						<div
+							className="flex h-full items-center justify-center text-muted-foreground cursor-context-menu"
+							onContextMenu={handleDrawerRootContextMenu}
+						>
 							{t("noAssets")}
 						</div>
 					)}
 					{!loading && data && assets.length > 0 && (
-						<div className="drawer-canvas-3d h-full w-full rounded-xl overflow-hidden border border-border/90 bg-background/40">
+						<div
+							ref={canvasWrapperRef}
+							className="drawer-canvas-3d h-full w-full rounded-xl overflow-hidden border border-border/90 bg-background/40"
+						>
 							<MainContainer
 								className="h-full w-full rounded-xl border-0"
 							onDragEnd={onDragEnd}
@@ -445,6 +525,49 @@ export function SpaceAssetsDrawer({
 					)}
 </div>
 			</div>
+			{/* 空白处右键菜单：新建物品 */}
+			{rootMenu.open && (
+				<>
+					<div
+						className="fixed inset-0 z-60"
+						aria-hidden
+						onClick={() => setRootMenu((prev) => (prev.open ? { ...prev, open: false } : prev))}
+					/>
+					<div
+						ref={rootMenuRef}
+						className={cn(
+							"fixed z-61 min-w-40 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
+							"animate-in fade-in-0 zoom-in-95"
+						)}
+						style={{ left: rootMenu.x, top: rootMenu.y }}
+						role="menu"
+					>
+						<button
+							type="button"
+							className="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0"
+							role="menuitem"
+							onClick={handleOpenCreateDialog}
+						>
+							<Package className="text-muted-foreground" />
+							{t("newAsset")}
+						</button>
+					</div>
+				</>
+			)}
+
+			{spaceId && (
+				<CreateAssetDialog
+					spaceId={spaceId}
+					open={createDialogOpen}
+					onOpenChange={(open) => {
+						setCreateDialogOpen(open);
+						if (!open) setCreateInitialPosition(null);
+					}}
+					onSuccess={handleCreateAssetSuccess}
+					initialPosition={createInitialPosition}
+				/>
+			)}
+
 			{spaceId && (
 				<AssetDetailDrawer
 					asset={selectedAsset}
