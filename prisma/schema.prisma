@@ -42,6 +42,8 @@ model Space {
   name        String
   description String
   order       Int      @default(0) // 列表展示顺序，越小越靠前
+  // 平面图上的区域：网格格点坐标数组 [{x,y}, ...]，必填
+  cells       Json     @default("[]")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

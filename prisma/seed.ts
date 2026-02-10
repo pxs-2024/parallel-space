@@ -47,23 +47,47 @@ const users = [
 	{ username: "user", email: "hello@vdigital.design" },
 ];
 
-const spaces = [
-	{ name: "空间1", description: "默认测试空间" },
-	{ name: "书房", description: "书房书籍与文具" },
-	{ name: "厨房", description: "厨房耗材与食材" },
-	{ name: "办公室", description: "办公用品与设备" },
-	{ name: "浴室", description: "洗护与日耗" },
-	{ name: "药箱", description: "药品与保健品" },
-	{ name: "车库", description: "工具与耗材" },
-	{ name: "客厅", description: "客厅收纳与消耗品" },
-	{ name: "卧室", description: "卧室用品与收纳" },
-	{ name: "阳台", description: "绿植与杂物" },
-	{ name: "儿童房", description: "儿童用品与玩具" },
-	{ name: "储物间", description: "囤货与换季" },
-	{ name: "健身房", description: "运动装备与补给" },
-	{ name: "宠物角", description: "宠物粮与用品" },
-	{ name: "玄关", description: "鞋帽与出门用品" },
-	{ name: "影音室", description: "设备与线材" },
+// 户型图格点：画布中心约 (100,100)，整体布局偏移使户型居中
+const CELL_OFFSET = 52;
+
+type Cell = { x: number; y: number };
+
+function rect(minX: number, minY: number, maxX: number, maxY: number): Cell[] {
+	const cells: Cell[] = [];
+	for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) cells.push({ x, y });
+	return cells;
+}
+
+function union(...parts: Cell[][]): Cell[] {
+	const set = new Set(parts.flatMap((p) => p.map((c) => `${c.x},${c.y}`)));
+	return Array.from(set, (s) => {
+		const [x, y] = s.split(",").map(Number);
+		return { x, y };
+	});
+}
+
+function shiftCells(cells: Cell[], dx: number, dy: number): Cell[] {
+	return cells.map((c) => ({ x: c.x + dx, y: c.y + dy }));
+}
+
+// 8 个户型房间，格点严格临接；原始布局 (5,5)-(90,92)，整体偏移后居中
+const floorPlanSpaces: { name: string; description: string; cells: Cell[] }[] = [
+	{ name: "玄关", description: "入户过渡与收纳", cells: shiftCells(rect(5, 5, 22, 28), CELL_OFFSET, CELL_OFFSET) },
+	{
+		name: "客厅",
+		description: "日常休息与会客",
+		cells: shiftCells(union(rect(23, 5, 58, 35), rect(59, 25, 72, 35)), CELL_OFFSET, CELL_OFFSET),
+	},
+	{ name: "卧室", description: "休息与收纳", cells: shiftCells(rect(73, 5, 90, 38), CELL_OFFSET, CELL_OFFSET) },
+	{ name: "厨房", description: "烹饪与储物", cells: shiftCells(rect(5, 29, 22, 52), CELL_OFFSET, CELL_OFFSET) },
+	{
+		name: "餐厅",
+		description: "用餐区域",
+		cells: shiftCells(union(rect(23, 36, 55, 72), rect(56, 36, 72, 50)), CELL_OFFSET, CELL_OFFSET),
+	},
+	{ name: "书房", description: "工作与阅读", cells: shiftCells(rect(73, 39, 90, 72), CELL_OFFSET, CELL_OFFSET) },
+	{ name: "卫生间", description: "洗漱与卫浴", cells: shiftCells(rect(5, 53, 22, 72), CELL_OFFSET, CELL_OFFSET) },
+	{ name: "阳台", description: "晾晒与绿植", cells: shiftCells(rect(5, 73, 90, 92), CELL_OFFSET, CELL_OFFSET) },
 ];
 
 // 静态物品模板（无 x/y，由布局函数分配）
@@ -134,7 +158,13 @@ const seed = async () => {
 	const admin = createdUsers[0];
 
 	const createdSpaces = await prisma.space.createManyAndReturn({
-		data: spaces.map((s, index) => ({ ...s, userId: admin.id, order: index })),
+		data: floorPlanSpaces.map((s, index) => ({
+			name: s.name,
+			description: s.description,
+			userId: admin.id,
+			order: index,
+			cells: s.cells,
+		})),
 	});
 
 	const baseTime = new Date();
@@ -144,7 +174,7 @@ const seed = async () => {
 
 	for (let sIdx = 0; sIdx < createdSpaces.length; sIdx++) {
 		const space = createdSpaces[sIdx];
-		const spaceName = spaces[sIdx].name;
+		const spaceName = floorPlanSpaces[sIdx].name;
 		const toCreate: Prisma.AssetCreateManyInput[] = [];
 		// 每个空间从 0 开始排布，物品集中在原点附近，进入页面即可看见
 		let spaceLayoutIndex = 0;

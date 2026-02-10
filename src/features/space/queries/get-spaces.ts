@@ -22,6 +22,7 @@ export const getSpaces = async () => {
 				description: DEFAULT_SPACE_DESCRIPTION,
 				userId: user.id,
 				order: 0,
+				cells: [],
 			},
 		});
 		spaces = await prisma.space.findMany({

@@ -1,6 +1,9 @@
-import {CanvasGridSelector} from "@/components/temp/canvas-grid-selector";
+import { CanvasGridSelector } from "@/components/floor-plan/canvas-grid-selector";
 
-
-export default function Page(){
-	return <CanvasGridSelector></CanvasGridSelector>
+export default function FloorPlanPage() {
+	return (
+		<div className="flex flex-col h-full">
+				<CanvasGridSelector />
+		</div>
+	);
 }

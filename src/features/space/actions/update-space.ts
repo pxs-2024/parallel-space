@@ -11,10 +11,12 @@ import {
 } from "@/components/form/utils/to-action-state";
 import { getAuth } from "@/features/auth/queries/get-auth";
 
+const cellSchema = z.object({ x: z.number().int(), y: z.number().int() });
 const updateSpaceSchema = z.object({
 	spaceId: z.string().min(1, "空间 ID 不能为空"),
-	name: z.string().min(1, "名称不能为空").max(191, "名称不能超过191个字符"),
-	description: z.string().max(1000, "描述不能超过1000个字符").optional().default(""),
+	name: z.string().min(1, "名称不能为空").max(191, "名称不能超过191个字符").optional(),
+	description: z.string().max(1000, "描述不能超过1000个字符").optional(),
+	cells: z.array(cellSchema).optional(),
 });
 
 export async function updateSpace(
@@ -36,12 +38,14 @@ export async function updateSpace(
 			return toActionState("ERROR", "空间不存在或无权修改", formData);
 		}
 
+		const updateData: { name?: string; description?: string; cells?: { x: number; y: number }[] } = {};
+		if (data.name !== undefined) updateData.name = data.name.trim();
+		if (data.description !== undefined) updateData.description = data.description.trim();
+		if (data.cells !== undefined) updateData.cells = data.cells;
+
 		await prisma.space.update({
 			where: { id: data.spaceId },
-			data: {
-				name: data.name.trim(),
-				description: (data.description ?? "").trim(),
-			},
+			data: updateData,
 		});
 
 		const locale = await getLocale();
