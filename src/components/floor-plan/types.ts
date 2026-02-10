@@ -20,4 +20,42 @@ export type Item = {
 	quantity?: number;
 };
 
-export type DragMode = "none" | "pan" | "moveShape" | "boxSelectCells";
+export type DragMode = "none" | "pan" | "moveShape" | "boxSelectCells" | "ignore";
+
+/** 拖拽状态（用于指针事件） */
+export type DragState = {
+	mode: DragMode;
+	startScreenX: number;
+	startScreenY: number;
+	baseTranslateX: number;
+	baseTranslateY: number;
+	startCell: Cell | null;
+	currentCell: Cell | null;
+	spaceId: string | null;
+	baseSpaceCells: Cell[] | null;
+	activated: boolean;
+	shiftAtStart: boolean;
+	boxSelectSubtract: boolean;
+};
+
+/** 持久化回调：与后端同步空间数据 */
+export type FloorPlanPersistCallbacks = {
+	onCreate: (name: string, cells: Cell[]) => void | Promise<void>;
+	onUpdate: (spaceId: string, cells: Cell[]) => void | Promise<void>;
+	onSpaceSelect: (spaceId: string) => void;
+};
+
+export const INITIAL_DRAG_STATE: DragState = {
+	mode: "none",
+	startScreenX: 0,
+	startScreenY: 0,
+	baseTranslateX: 0,
+	baseTranslateY: 0,
+	startCell: null,
+	currentCell: null,
+	spaceId: null,
+	baseSpaceCells: null,
+	activated: false,
+	shiftAtStart: false,
+	boxSelectSubtract: false,
+};

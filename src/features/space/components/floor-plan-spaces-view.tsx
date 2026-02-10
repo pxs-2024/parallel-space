@@ -8,6 +8,7 @@ import {
 } from "@/components/floor-plan/canvas-grid-selector";
 import type { Cell, Space } from "@/components/floor-plan/types";
 import { cellsToBorderSegments } from "@/components/floor-plan/utils";
+import { Button } from "@/components/ui/button";
 import { createSpaceFromFloorPlan } from "../actions/create-space";
 import { updateSpaceCells } from "../actions/update-space-cells";
 import { SpaceAssetsDrawer } from "./space-assets-drawer";
@@ -40,6 +41,7 @@ export function FloorPlanSpacesView({ spaces: serverSpaces }: FloorPlanSpacesVie
 	const router = useRouter();
 	const [drawerSpaceId, setDrawerSpaceId] = useState<string | null>(null);
 	const [focusAssetId, setFocusAssetId] = useState<string | null>(null);
+	const [editMode, setEditMode] = useState(false);
 
 	const initialSpaces = useMemo(
 		() => toFloorPlanSpaces(serverSpaces),
@@ -78,12 +80,22 @@ export function FloorPlanSpacesView({ spaces: serverSpaces }: FloorPlanSpacesVie
 
 	return (
 		<>
-			<div className="flex flex-col flex-1 min-h-0">
+			<div className="relative flex flex-col flex-1 min-h-0">
 				<CanvasGridSelector
 					initialSpaces={initialSpaces}
 					persistCallbacks={persistCallbacks}
 					noItems
+					editMode={editMode}
 				/>
+				<Button
+					type="button"
+					variant={editMode ? "default" : "outline"}
+					size="sm"
+					onClick={() => setEditMode((v) => !v)}
+					className={`absolute top-3 z-10 shadow-sm ${editMode ? "right-[12.75rem]" : "right-3"}`}
+				>
+					{editMode ? "完成" : "编辑"}
+				</Button>
 			</div>
 			<SpaceAssetsDrawer
 				spaceId={drawerSpaceId}
