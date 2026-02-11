@@ -19,12 +19,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { useSpaceKeyListener } from "./hooks/useKeyDownLinstener";
 import { useScheduleDraw } from "./hooks/useScheduleDraw";
+import { useInitAndResizeCanvas } from "./hooks/useInitAndResizeCanvas";
+import { drawActiveBoxSelectCells, drawBoxSelectCells, drawHoverSpace, drawSelectedCells, drawSpaces, resetCanvas } from "./drawUtils";
 
 export type FloorPlanPersistCallbacks = {
 	onCreate: (name: string, cells: Cell[]) => void | Promise<void>;
 	onUpdate: (spaceId: string, cells: Cell[]) => void | Promise<void>;
 	onSpaceSelect: (spaceId: string) => void;
 };
+
+type ToolMode = "select" | "deselect" | null;
 
 type CanvasGridSelectorProps = {
 	/** 外部传入的空间（持久化模式）；有值时以之为准并同步 */
@@ -37,6 +41,27 @@ type CanvasGridSelectorProps = {
 	editMode?: boolean;
 };
 
+export type DragState = {
+	mode: DragMode; // 当前拖拽模式
+	startScreenX: number; // 开始拖拽时的屏幕X坐标
+	startScreenY: number; // 开始拖拽时的屏幕Y坐标
+
+	baseTranslateX: number; // 基准平移X值
+	baseTranslateY: number; // 基准平移Y值
+
+	startCell: Cell | null; // 开始拖拽时的单元格
+	currentCell: Cell | null; // 当前鼠标位置对应的单元格
+
+	spaceId: string | null; // 拖拽的空间ID
+	baseSpaceCells: Cell[] | null; // 拖拽开始时空间的原始单元格
+
+	activated: boolean; // 是否已激活拖拽（超过阈值）
+
+	// 本次 pointerdown 时是否按着 shift（锁定，避免中途按/松导致逻辑跳变）
+	shiftAtStart: boolean;
+	// 框选时为 true 表示从选区中减去，否则为加选
+	boxSelectSubtract: boolean;
+}
 /**
  * CanvasGridSelector - 物品管理平面图
  *
@@ -58,7 +83,6 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 
 	const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
 
-	// 持久化模式：仅当 initialSpaces 内容变化时同步，避免引用每次都是新数组导致反复 setState 引发无限重渲染
 	useEffect(() => {
 		if (initialSpaces == null) return;
 		if (initialSpaces.length === 0) {
@@ -80,16 +104,14 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 
 	const hoverSpaceIdRef = useRef<string | null>(null);
 	const spaceCellSetRef = useRef<Map<string, Set<string>>>(new Map());
-
+	
 	// 视口变换参数（平移和缩放）
-	const viewRef = useRef({ translateX: 0, translateY: 0, scale: 1 });
-	// 视口尺寸
-	const viewportRef = useRef({ width: 800, height: 600 });
+	const viewRef = useRef<{ translateX: number; translateY: number; scale: number }>({ translateX: 0, translateY: 0, scale: 1 });
 
 	const spaceKeyRef = useSpaceKeyListener();
 
 	// 右侧工具模式：选择（圈选加选）、取消（圈选减选）、null（默认行为）
-	type ToolMode = "select" | "deselect" | null;
+
 	const [toolMode, setToolMode] = useState<ToolMode>(null);
 	const toolModeRef = useLatest<ToolMode>(toolMode);
 
@@ -100,27 +122,7 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 
 	// 拖拽状态管理
 
-	const dragStateRef = useRef<{
-		mode: DragMode; // 当前拖拽模式
-		startScreenX: number; // 开始拖拽时的屏幕X坐标
-		startScreenY: number; // 开始拖拽时的屏幕Y坐标
-
-		baseTranslateX: number; // 基准平移X值
-		baseTranslateY: number; // 基准平移Y值
-
-		startCell: Cell | null; // 开始拖拽时的单元格
-		currentCell: Cell | null; // 当前鼠标位置对应的单元格
-
-		spaceId: string | null; // 拖拽的空间ID
-		baseSpaceCells: Cell[] | null; // 拖拽开始时空间的原始单元格
-
-		activated: boolean; // 是否已激活拖拽（超过阈值）
-
-		// 本次 pointerdown 时是否按着 shift（锁定，避免中途按/松导致逻辑跳变）
-		shiftAtStart: boolean;
-		// 框选时为 true 表示从选区中减去，否则为加选
-		boxSelectSubtract: boolean;
-	}>({
+	const dragStateRef = useRef<DragState>({
 		mode: "none",
 		startScreenX: 0,
 		startScreenY: 0,
@@ -134,52 +136,6 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 		shiftAtStart: false,
 		boxSelectSubtract: false,
 	});
-
-	// 请求动画帧重绘管理
-	const rafRef = useRef<number | null>(null);
-	const pendingRef = useRef(false);
-
-	/**
-	 * 调度重绘函数
-	 * 使用 requestAnimationFrame 优化重绘性能，避免重复调用
-	 */
-	/**
-	 * 调度重绘函数
-	 * 使用 requestAnimationFrame 优化重绘性能，避免重复调用
-	 *
-	 * 工作原理：
-	 * 1. 如果已有待执行的动画帧，标记为 pending，避免重复调度
-	 * 2. 否则，请求新的动画帧执行 draw()
-	 * 3. 绘制完成后，如果期间有新的绘制请求（pending），则递归调度
-	 *
-	 * 这样可以确保：
-	 * - 绘制频率不超过屏幕刷新率（通常 60fps）
-	 * - 多次快速调用会合并为一次绘制
-	 * - 不会丢失绘制请求（通过 pending 标记）
-	 */
-
-
-	/**
-	 * 根据设备像素比调整Canvas尺寸
-	 * 确保在高DPI设备上显示清晰的图形
-	 */
-	const resizeCanvasToDPR = () => {
-		const canvas = canvasRef.current;
-		const wrap = wrapRef.current;
-		if (!canvas || !wrap) return;
-
-		const width = wrap.clientWidth;
-		const height = wrap.clientHeight;
-		viewportRef.current = { width, height };
-
-		const devicePixelRatio = window.devicePixelRatio || 1;
-		canvas.style.width = `${width}px`;
-		canvas.style.height = `${height}px`;
-		canvas.width = Math.floor(width * devicePixelRatio);
-		canvas.height = Math.floor(height * devicePixelRatio);
-	};
-
-	// 坐标转换工具函数
 
 	/**
 	 * 将客户端坐标转换为屏幕坐标
@@ -372,225 +328,20 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 		const ctx = canvas.getContext("2d");
 		if (!ctx) return;
 
-		const devicePixelRatio = window.devicePixelRatio || 1;
-		const { width, height } = viewportRef.current;
-
-		// 完全重置变换并清空画布
-		ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-		ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-		// 先绘制整个视口的黑色背景
-		ctx.fillStyle = "#000000";
-		ctx.fillRect(0, 0, width, height);
-
-		// 设置视口变换（平移和缩放）
-		const { translateX, translateY, scale } = viewRef.current;
-		ctx.setTransform(
-			devicePixelRatio * scale,
-			0,
-			0,
-			devicePixelRatio * scale,
-			devicePixelRatio * translateX,
-			devicePixelRatio * translateY
-		);
-
-		// 计算可见区域的世界坐标范围
-		const topLeft = screenToWorldPx(0, 0);
-		const bottomRight = screenToWorldPx(width, height);
-		const minWorldX = topLeft.worldX;
-		const maxWorldX = bottomRight.worldX;
-		const minWorldY = topLeft.worldY;
-		const maxWorldY = bottomRight.worldY;
-
-		// 计算画布边界的世界坐标（4000*4000像素）
-		const canvasMinX = 0;
-		const canvasMaxX = MAX_CANVAS_SIZE; // 4000像素
-		const canvasMinY = 0;
-		const canvasMaxY = MAX_CANVAS_SIZE; // 4000像素
-
-		// 绘制画布区域的白色背景（带圆角）
-		const cornerRadius = 16 / scale; // 圆角半径，根据缩放调整
-		ctx.fillStyle = "#ffffff";
-		ctx.beginPath();
-		ctx.roundRect(
-			canvasMinX,
-			canvasMinY,
-			canvasMaxX - canvasMinX,
-			canvasMaxY - canvasMinY,
-			cornerRadius
-		);
-		ctx.fill();
-
-		// 计算需要绘制的网格范围（限制在画布内）
-		// 注意：现在画布是4000*4000像素，但格子大小仍然是SIZE=10
-		const minGridX = Math.floor(Math.max(minWorldX, canvasMinX) / SIZE) - 1;
-		const maxGridX = Math.floor(Math.min(maxWorldX, canvasMaxX) / SIZE) + 1;
-		const minGridY = Math.floor(Math.max(minWorldY, canvasMinY) / SIZE) - 1;
-		const maxGridY = Math.floor(Math.min(maxWorldY, canvasMaxY) / SIZE) + 1;
-
-		// 绘制网格线（只在画布范围内绘制）
-		ctx.lineWidth = 1 / scale;
-		ctx.strokeStyle = "#ff000012";
-		ctx.beginPath();
-		for (let gridX = minGridX; gridX <= maxGridX; gridX++) {
-			const x = gridX * SIZE;
-			// 只在画布范围内绘制竖线
-			if (x >= canvasMinX && x <= canvasMaxX) {
-				ctx.moveTo(x, Math.max(minWorldY, canvasMinY));
-				ctx.lineTo(x, Math.min(maxWorldY, canvasMaxY));
-			}
-		}
-		for (let gridY = minGridY; gridY <= maxGridY; gridY++) {
-			const y = gridY * SIZE;
-			// 只在画布范围内绘制横线
-			if (y >= canvasMinY && y <= canvasMaxY) {
-				ctx.moveTo(Math.max(minWorldX, canvasMinX), y);
-				ctx.lineTo(Math.min(maxWorldX, canvasMaxX), y);
-			}
-		}
-		ctx.stroke();
-
-		// 绘制选中的单元格
-		const selectedCells = selectedRef.current;
-		if (selectedCells.length) {
-			ctx.fillStyle = "rgba(59,130,246,0.85)";
-			for (const cell of selectedCells) {
-				// 只绘制在画布范围内的单元格（4000*4000像素范围内）
-				if (isValidCell(cell)) {
-					ctx.fillRect(cell.x * SIZE, cell.y * SIZE, SIZE, SIZE);
-				}
-			}
-		}
-
-		// 绘制所有形状的轮廓
+		const { scale } = viewRef.current;
 		const spaceList = spacesRef.current;
-		if (spaceList.length) {
-			ctx.lineWidth = 2 / scale;
-			ctx.strokeStyle = "#2563eb";
-			ctx.lineCap = "round";
-			ctx.lineJoin = "round";
-			for (const space of spaceList) {
-				if (space.segs.length === 0) continue;
-				for (const path of space.segs) {
-					if (path.length === 0) continue;
-					ctx.beginPath();
-					const first = path[0];
-					ctx.moveTo(first.x1 * SIZE, first.y1 * SIZE);
-					ctx.lineTo(first.x2 * SIZE, first.y2 * SIZE);
-					for (let i = 1; i < path.length; i++) {
-						ctx.lineTo(path[i].x2 * SIZE, path[i].y2 * SIZE);
-					}
-					ctx.closePath();
-					ctx.stroke();
-				}
-			}
-			// 房间名称：取格点中心为文字位置，字号随缩放调整
-			const fontSize = Math.max(10, 14 / scale);
-			ctx.font = `${fontSize}px sans-serif`;
-			ctx.textAlign = "center";
-			ctx.textBaseline = "middle";
-			ctx.fillStyle = "rgba(0,0,0,0.7)";
-			for (const space of spaceList) {
-				if (space.cells.length === 0) continue;
-				let sumX = 0;
-				let sumY = 0;
-				for (const c of space.cells) {
-					sumX += c.x + 0.5;
-					sumY += c.y + 0.5;
-				}
-				const centerX = (sumX / space.cells.length) * SIZE;
-				const centerY = (sumY / space.cells.length) * SIZE;
-				ctx.fillText(space.name, centerX, centerY);
-			}
-		}
-
-		const hoverId = hoverSpaceIdRef.current;
-		if (hoverId) {
-			const hoverSpace = spaceList.find((s) => s.id === hoverId);
-			if (hoverSpace && hoverSpace.segs.length > 0) {
-				ctx.fillStyle = "rgba(37,99,235,0.10)";
-				for (const cell of hoverSpace.cells) {
-					if (isValidCell(cell)) {
-						ctx.fillRect(cell.x * SIZE, cell.y * SIZE, SIZE, SIZE);
-					}
-				}
-				ctx.lineWidth = 4 / scale;
-				ctx.strokeStyle = "#1d4ed8";
-				ctx.lineCap = "round";
-				ctx.lineJoin = "round";
-				for (const path of hoverSpace.segs) {
-					if (path.length === 0) continue;
-					ctx.beginPath();
-					ctx.moveTo(path[0].x1 * SIZE, path[0].y1 * SIZE);
-					ctx.lineTo(path[0].x2 * SIZE, path[0].y2 * SIZE);
-					for (let i = 1; i < path.length; i++) {
-						ctx.lineTo(path[i].x2 * SIZE, path[i].y2 * SIZE);
-					}
-					ctx.closePath();
-					ctx.stroke();
-				}
-			}
-		}
-
-		const selectedSpaceIdValue = selectedSpaceIdRef.current;
-		if (selectedSpaceIdValue) {
-			const selectedSpace = spaceList.find((s) => s.id === selectedSpaceIdValue);
-			if (selectedSpace && selectedSpace.segs.length > 0) {
-				ctx.lineWidth = 5 / scale;
-				ctx.strokeStyle = "rgba(0,0,0,0.35)";
-				ctx.lineCap = "round";
-				ctx.lineJoin = "round";
-				for (const path of selectedSpace.segs) {
-					if (path.length === 0) continue;
-					ctx.beginPath();
-					ctx.moveTo(path[0].x1 * SIZE, path[0].y1 * SIZE);
-					ctx.lineTo(path[0].x2 * SIZE, path[0].y2 * SIZE);
-					for (let i = 1; i < path.length; i++) {
-						ctx.lineTo(path[i].x2 * SIZE, path[i].y2 * SIZE);
-					}
-					ctx.closePath();
-					ctx.stroke();
-				}
-			}
-		}
-
-		// 绘制框选单元格的覆盖层（激活状态）
-		const state = dragStateRef.current;
-		if (
-			state.mode === "boxSelectCells" &&
-			state.activated &&
-			state.startCell &&
-			state.currentCell
-		) {
-			const startCell = clampCell(state.startCell);
-			const endCell = clampCell(state.currentCell);
-			const minX = Math.min(startCell.x, endCell.x);
-			const maxX = Math.max(startCell.x, endCell.x);
-			const minY = Math.min(startCell.y, endCell.y);
-			const maxY = Math.max(startCell.y, endCell.y);
-
-			const left = minX * SIZE;
-			const top = minY * SIZE;
-			const rectWidth = (maxX - minX + 1) * SIZE;
-			const rectHeight = (maxY - minY + 1) * SIZE;
-
-			// 只在画布范围内绘制框选覆盖层
-			if (
-				left >= canvasMinX &&
-				left + rectWidth <= canvasMaxX &&
-				top >= canvasMinY &&
-				top + rectHeight <= canvasMaxY
-			) {
-				ctx.fillStyle = "rgba(37,99,235,0.10)";
-				ctx.strokeStyle = "#2563eb";
-				ctx.lineWidth = 1 / scale;
-				ctx.fillRect(left, top, rectWidth, rectHeight);
-				ctx.strokeRect(left, top, rectWidth, rectHeight);
-			}
-		}
+		resetCanvas(ctx, canvas, viewportRef.current, viewRef.current,screenToWorldPx);
+		drawSelectedCells(ctx, selectedRef.current);
+		drawSpaces(ctx, spaceList, scale);
+		const hoverSpace = spaceList.find((s) => s.id === hoverSpaceIdRef.current);
+		if (hoverSpace) drawHoverSpace(ctx, hoverSpace, scale);
+		drawBoxSelectCells(ctx, spaceList, selectedSpaceIdRef.current, scale);	
+		drawActiveBoxSelectCells(ctx, dragStateRef.current, scale);
 	};
 
 	const scheduleDraw = useScheduleDraw(draw);
+	const viewportRef = useInitAndResizeCanvas(canvasRef, wrapRef, viewRef, scheduleDraw);
+
 
 	/**
 	 * 鼠标滚轮事件处理
@@ -637,70 +388,6 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 		scheduleDraw();
 	};
 
-	// 初始化和尺寸调整
-	useEffect(() => {
-		// 初始化Canvas和视口
-		resizeCanvasToDPR();
-		const { width, height } = viewportRef.current;
-
-		// 画布像素计算说明：
-		// - 画布尺寸：4000 × 4000 像素
-		// - 每个格子：10 × 10 像素
-		// - 总格子数：400 × 400 个
-		// - 画布世界坐标范围：(0, 0) 到 (4000, 4000)
-
-		// 设置初始视口为中心，缩放级别适合显示4000*4000像素的画布
-		const canvasSize = getCanvasPixelSize();
-		const initialScale = Math.min(width / canvasSize.width, height / canvasSize.height);
-
-		// 计算画布中心的世界坐标
-		const canvasCenterX = canvasSize.width / 2; // 2000
-		const canvasCenterY = canvasSize.height / 2; // 2000
-
-		// 设置视口变换，使画布中心对齐到屏幕中心
-		// screenX = worldX * scale + translateX
-		// 要使画布中心(2000, 2000)显示在屏幕中心(width/2, height/2)
-		// translateX = screenX - worldX * scale = width/2 - 2000 * scale
-		// translateY = screenY - worldY * scale = height/2 - 2000 * scale
-
-		// 修复：使用合理的初始缩放级别，避免格子过小
-		const reasonableScale = Math.max(0.5, initialScale); // 最小缩放0.5，确保格子不会太小
-
-		viewRef.current = {
-			translateX: width / 2 - canvasCenterX * reasonableScale,
-			translateY: height / 2 - canvasCenterY * reasonableScale,
-			scale: reasonableScale,
-		};
-		draw();
-
-		// 窗口尺寸变化处理
-		const onResize = () => {
-			resizeCanvasToDPR();
-			scheduleDraw();
-		};
-		window.addEventListener("resize", onResize);
-
-		// 使用ResizeObserver监听容器尺寸变化
-		const resizeObserver =
-			typeof ResizeObserver !== "undefined"
-				? new ResizeObserver(() => {
-						resizeCanvasToDPR();
-						scheduleDraw();
-				  })
-				: null;
-		if (resizeObserver && wrapRef.current) resizeObserver.observe(wrapRef.current);
-
-		// 清理函数
-		return () => {
-			window.removeEventListener("resize", onResize);
-			if (rafRef.current !== null) {
-				cancelAnimationFrame(rafRef.current);
-				rafRef.current = null;
-			}
-			if (resizeObserver) resizeObserver.disconnect();
-		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
 
 	useEffect(() => {
 		const map = new Map<string, Set<string>>();
@@ -720,25 +407,6 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 		scheduleDraw();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [selected, selectedSpaceId]);
-
-	// space key
-	useEffect(() => {
-		const onKeyDown = (e: KeyboardEvent) => {
-			if (e.code === "Space") {
-				e.preventDefault();
-				spaceKeyRef.current = true;
-			}
-		};
-		const onKeyUp = (e: KeyboardEvent) => {
-			if (e.code === "Space") spaceKeyRef.current = false;
-		};
-		window.addEventListener("keydown", onKeyDown, { passive: false });
-		window.addEventListener("keyup", onKeyUp);
-		return () => {
-			window.removeEventListener("keydown", onKeyDown);
-			window.removeEventListener("keyup", onKeyUp);
-		};
-	}, []);
 
 	// 指针事件处理函数
 
