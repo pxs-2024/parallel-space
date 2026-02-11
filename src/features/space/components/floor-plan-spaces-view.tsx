@@ -40,7 +40,6 @@ type FloorPlanSpacesViewProps = {
 export function FloorPlanSpacesView({ spaces: serverSpaces }: FloorPlanSpacesViewProps) {
 	const router = useRouter();
 	const [drawerSpaceId, setDrawerSpaceId] = useState<string | null>(null);
-	const [focusAssetId, setFocusAssetId] = useState<string | null>(null);
 	const [editMode, setEditMode] = useState(false);
 
 	const initialSpaces = useMemo(
@@ -97,18 +96,16 @@ export function FloorPlanSpacesView({ spaces: serverSpaces }: FloorPlanSpacesVie
 					{editMode ? "完成" : "编辑"}
 				</Button>
 			</div>
-			<SpaceAssetsDrawer
+			{/* <SpaceAssetsDrawer
 				spaceId={drawerSpaceId}
 				open={drawerSpaceId != null}
 				onOpenChange={(open) => {
 					if (!open) {
 						setDrawerSpaceId(null);
-						setFocusAssetId(null);
 					}
 				}}
-				focusAssetId={focusAssetId}
 				otherSpaces={otherSpaces}
-			/>
+			/> */}
 		</>
 	);
 }
