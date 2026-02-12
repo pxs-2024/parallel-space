@@ -1,5 +1,5 @@
-import { Cell, DragMode, Space } from "./types";
-import { DragState } from "./canvas-grid-selector";
+import { Cell, DragMode, Point, Space } from "./types";
+import { DragState } from "./canvas-grid-selector22";
 import { MAX_CANVAS_SIZE, SIZE } from "./constants";
 import { clampCell } from "./utils";
 
@@ -247,3 +247,27 @@ export const drawActiveBoxSelectCells = (ctx: CanvasRenderingContext2D, state: D
 		}
 	}
 };
+
+export const drawPoint = (ctx: CanvasRenderingContext2D, point: Point, scale: number) => {
+	ctx.fillStyle = "rgba(37,99,235,0.10)";
+	drawCircle(ctx, point.x * SIZE, point.y * SIZE, 4, { fill: "rgba(255,0,0,1) "});
+}
+
+
+function drawCircle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, options: { fill: string, stroke?: string, lineWidth?: number } = { fill: "rgba(37,99,235,0.10)", stroke: "#2563eb", lineWidth: 1 }) {
+  const { fill, stroke, lineWidth = 1 } = options;
+
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.closePath();
+  if (fill) {
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+
+  if (stroke) {
+    ctx.lineWidth = lineWidth;
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+  }
+}

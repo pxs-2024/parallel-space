@@ -1,4 +1,4 @@
-import { CanvasGridSelector } from "@/components/floor-plan/canvas-grid-selector";
+import { CanvasGridSelector } from "@/components/floor-plan/canvas-grid-selector22";
 
 export default function FloorPlanPage() {
 	return (

@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
 	CanvasGridSelector,
-	type FloorPlanPersistCallbacks,
 } from "@/components/floor-plan/canvas-grid-selector";
 import type { Cell, Space } from "@/components/floor-plan/types";
 import { cellsToBorderSegments } from "@/components/floor-plan/utils";
@@ -82,7 +81,7 @@ export function FloorPlanSpacesView({ spaces: serverSpaces }: FloorPlanSpacesVie
 			<div className="relative flex flex-col flex-1 min-h-0">
 				<CanvasGridSelector
 					initialSpaces={initialSpaces}
-					persistCallbacks={persistCallbacks}
+					// persistCallbacks={persistCallbacks}
 					noItems
 					editMode={editMode}
 				/>
