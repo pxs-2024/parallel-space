@@ -2,12 +2,15 @@ export type Cell = { x: number; y: number };
 export type Point = { x: number; y: number };
 export type Screen = { screenX: number; screenY: number };
 
-export type Space = { id: string; name: string; cells: Cell[]; segs?: any };
+
+export type Segment = { x1: number; y1: number; x2: number; y2: number };
+
+export type Space = { id: string; name: string; cells: Cell[]; segs?: Segment[][] };
 
 export type View = { translateX: number; translateY: number; scale: number };
 export type Viewport = { width: number; height: number };
 
-export type ToolId = "default" | "select" | "deselect" | "cleanSegments";
+export type ToolId = "editDefault" | "select" | "deselect" | "cleanSegments" | "none";
 
 export type Overlay =
   | null

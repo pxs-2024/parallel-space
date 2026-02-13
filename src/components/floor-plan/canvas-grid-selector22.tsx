@@ -1,119 +1,154 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { DRAG_THRESHOLD_PX, SIZE } from "./constants";
-import type { Cell, DragState, Item, Point, Screen, Space } from "./types";
-import { useLatest } from "ahooks";
-import {
-	cellsToBorderSegments,
-	clampCell,
-	isConnected,
-	isValidCell,
-	keyOf,
-	unionCells,
-	subtractCells,
-	clamp,
-	getCanvasPixelSize,
-	buildCellsInRect,
-} from "./utils";
-import { Button } from "@/components/ui/button";
-import { useSpaceKeyListener } from "./hooks/useKeyDownLinstener";
-import { useScheduleDraw } from "./hooks/useScheduleDraw";
-import { useInitAndResizeCanvas } from "./hooks/useInitAndResizeCanvas";
-import {
-	drawActiveBoxSelectCells,
-	drawBoxSelectCells,
-	drawHoverSpace,
-	drawSelectedCells,
-	drawSpaces,
-	resetCanvas,
-	drawPoint,
-} from "./drawUtils";
+import { Cell, Segment, cellsToBorderSegments, isConnected, unionCells } from "./utils";
 
-export type FloorPlanPersistCallbacks = {
-	onCreate: (name: string, cells: Cell[]) => void | Promise<void>;
-	onUpdate: (spaceId: string, cells: Cell[]) => void | Promise<void>;
-	onSpaceSelect: (spaceId: string) => void;
-};
+const SIZE = 10;
+const DRAG_THRESHOLD_PX = 3;
+const MAX_CANVAS_SIZE = 4000; // 画布最大尺寸限制（4000个像素点）
 
-type ToolMode = "select" | "deselect" | "cleanSegments" | null;
-
-type CanvasGridSelectorProps = {
-	/** 外部传入的空间（持久化模式）；有值时以之为准并同步 */
-	initialSpaces?: Space[] | null;
-	/** 持久化回调：新建/移动/点击空间时调用 */
-	persistCallbacks?: FloorPlanPersistCallbacks | null;
-	/** 为 true 时不显示物品列表侧栏 */
-	noItems?: boolean;
-	/** 编辑模式：为 true 时显示选择/取消/新建空间等按钮；持久化模式下由外部控制 */
-	editMode?: boolean;
-};
+type Shape = { id: string; cells: Cell[]; segs: Segment[] };
 
 /**
- * CanvasGridSelector - 物品管理平面图
- *
- * 功能：在平面图上划分空间（房间/区域），并在各空间下管理物品。
- * - 空间：由网格圈选形成，可拖动调整范围
- * - 物品：归属某一空间，支持名称与数量
- * - 支持 persistCallbacks：与后端同步，不显示物品侧栏时可设 noItems
- */
-const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
-	const { initialSpaces = null, persistCallbacks = null, noItems = false, editMode = true } = props;
+		 * 将单元格坐标转换为唯一键值
+		 * @param c 单元格对象，包含 x 和 y 坐标
+		 * @returns 格式为 "x,y" 的字符串键
+		 */
+		function keyOf(cell: Cell) {
+			return `${cell.x},${cell.y}`;
+		}
 
+		/**
+		 * 验证单元格坐标是否在画布限制范围内
+		 * @param cell 单元格对象
+		 * @returns 是否在有效范围内
+		 */
+		function isValidCell(cell: Cell): boolean {
+			return (
+				cell.x >= 0 && 
+				cell.y >= 0 && 
+				cell.x < MAX_CANVAS_SIZE && 
+				cell.y < MAX_CANVAS_SIZE
+			);
+		}
+
+		/**
+		 * 限制单元格坐标在画布范围内
+		 * @param cell 单元格对象
+		 * @returns 限制后的单元格坐标
+		 */
+		function clampCell(cell: Cell): Cell {
+			return {
+				x: clamp(cell.x, 0, MAX_CANVAS_SIZE - 1),
+				y: clamp(cell.y, 0, MAX_CANVAS_SIZE - 1)
+			};
+		}
+
+		/**
+		 * 获取画布的实际像素尺寸
+		 * @returns 画布的像素宽度和高度
+		 */
+		function getCanvasPixelSize() {
+			return {
+				width: MAX_CANVAS_SIZE, // 4000像素
+				height: MAX_CANVAS_SIZE  // 4000像素
+			};
+		}
+
+		/**
+		 * 获取画布的格子数量
+		 * @returns 画布的格子宽度和高度数量
+		 */
+		function getCanvasGridCount() {
+			return {
+				width: MAX_CANVAS_SIZE / SIZE, // 400个格子
+				height: MAX_CANVAS_SIZE / SIZE  // 400个格子
+			};
+		}
+
+/**
+ * 将数值限制在指定范围内
+ * @param n 要限制的数值
+ * @param min 最小值
+ * @param max 最大值
+ * @returns 限制后的数值
+ */
+function clamp(number: number, min: number, max: number) {
+	return Math.max(min, Math.min(max, number));
+}
+
+type DragMode = "none" | "pan" | "moveShape" | "boxSelectCells";
+
+/**
+ * CanvasGridSelector - 网格画布选择器组件
+ *
+ * 功能特性：
+ * - 网格绘制和选择
+ * - 多种交互模式：平移、缩放、选择、移动图形
+ * - 支持 Shift 键锁定选择模式
+ * - 实时绘制和状态管理
+ */
+export default function CanvasGridSelector() {
+	// Canvas 元素引用
 	const canvasRef = useRef<HTMLCanvasElement | null>(null);
+	// 包装容器引用
 	const wrapRef = useRef<HTMLDivElement | null>(null);
 
+	// 当前选中的单元格数组
 	const [selected, setSelected] = useState<Cell[]>([]);
-	const [spaces, setSpaces] = useState<Space[]>(initialSpaces ?? []);
-	const [items, setItems] = useState<Item[]>([]);
+	// 所有已创建的形状数组
+	const [shapes, setShapes] = useState<Shape[]>([]);
+	// 错误状态消息
 	const [error, setError] = useState("");
 
-	const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+	// 当前选中的形状ID
+	const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
 
-	useEffect(() => {
-		if (initialSpaces == null) return;
-		if (initialSpaces.length === 0) {
-			setSpaces([]);
-			return;
-		}
-		setSpaces((prev) => {
-			if (prev.length !== initialSpaces.length) return initialSpaces;
-			const prevKey = prev.map((s) => s.id).join(",");
-			const nextKey = initialSpaces.map((s) => s.id).join(",");
-			return prevKey === nextKey ? prev : initialSpaces;
-		});
-	}, [initialSpaces]);
+	// 最新状态的引用（用于在事件处理中获取最新状态）
+	const selectedRef = useRef<Cell[]>([]);
+	const shapesRef = useRef<Shape[]>([]);
+	selectedRef.current = selected;
+	shapesRef.current = shapes;
 
-	const selectedRef = useLatest<Cell[]>(selected);
-	const spacesRef = useLatest<Space[]>(spaces);
+	// 当前选中形状的引用
+	const selectedShapeIdRef = useRef<string | null>(null);
+	selectedShapeIdRef.current = selectedShapeId;
 
-	const selectedSpaceIdRef = useLatest<string | null>(selectedSpaceId);
+	// 鼠标悬停的形状ID引用
+	const hoverShapeIdRef = useRef<string | null>(null);
 
-	const hoverSpaceIdRef = useRef<string | null>(null);
-	const spaceCellSetRef = useRef<Map<string, Set<string>>>(new Map());
+	// 形状ID到单元格集合的映射（用于快速查找）
+	const shapeCellSetRef = useRef<Map<string, Set<string>>>(new Map());
 
 	// 视口变换参数（平移和缩放）
-	const viewRef = useRef<{ translateX: number; translateY: number; scale: number }>({
-		translateX: 0,
-		translateY: 0,
-		scale: 1,
-	});
+	const viewRef = useRef({ translateX: 0, translateY: 0, scale: 1 });
+	// 视口尺寸
+	const viewportRef = useRef({ width: 800, height: 600 });
 
-	const spaceKeyRef = useSpaceKeyListener();
-
-	// 右侧工具模式：选择（圈选加选）、取消（圈选减选）、null（默认行为）
-
-	const [toolMode, setToolMode] = useState<ToolMode>(null);
-	const toolModeRef = useLatest<ToolMode>(toolMode);
-
-	// 退出编辑模式时清除工具模式，避免框选/取消仍生效
-	useEffect(() => {
-		if (!editMode) setToolMode(null);
-	}, [editMode]);
+	// 空格键按下状态
+	const spaceRef = useRef(false);
 
 	// 拖拽状态管理
 
-	const dragStateRef = useRef<DragState>({
+	const dragStateRef = useRef<{
+		mode: DragMode; // 当前拖拽模式
+		startScreenX: number; // 开始拖拽时的屏幕X坐标
+		startScreenY: number; // 开始拖拽时的屏幕Y坐标
+
+		baseTranslateX: number; // 基准平移X值
+		baseTranslateY: number; // 基准平移Y值
+
+		startCell: Cell | null; // 开始拖拽时的单元格
+		currentCell: Cell | null; // 当前鼠标位置对应的单元格
+
+		shapeId: string | null; // 拖拽的形状ID
+		baseShapeCells: Cell[] | null; // 拖拽开始时形状的原始单元格
+
+		activated: boolean; // 是否已激活拖拽（超过阈值）
+
+		// 本次 pointerdown 时是否按着 shift（锁定，避免中途按/松导致逻辑跳变）
+		shiftAtStart: boolean;
+	}>({
 		mode: "none",
 		startScreenX: 0,
 		startScreenY: 0,
@@ -121,13 +156,75 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 		baseTranslateY: 0,
 		startCell: null,
 		currentCell: null,
-		spaceId: null,
-		baseSpaceCells: null,
+		shapeId: null,
+		baseShapeCells: null,
 		activated: false,
 		shiftAtStart: false,
-		boxSelectSubtract: false,
-		startPoint: null,
 	});
+
+	// 请求动画帧重绘管理
+	const rafRef = useRef<number | null>(null);
+	const pendingRef = useRef(false);
+
+	/**
+	 * 调度重绘函数
+	 * 使用 requestAnimationFrame 优化重绘性能，避免重复调用
+	 */
+	/**
+	 * 调度重绘函数
+	 * 使用 requestAnimationFrame 优化重绘性能，避免重复调用
+	 * 
+	 * 工作原理：
+	 * 1. 如果已有待执行的动画帧，标记为 pending，避免重复调度
+	 * 2. 否则，请求新的动画帧执行 draw()
+	 * 3. 绘制完成后，如果期间有新的绘制请求（pending），则递归调度
+	 * 
+	 * 这样可以确保：
+	 * - 绘制频率不超过屏幕刷新率（通常 60fps）
+	 * - 多次快速调用会合并为一次绘制
+	 * - 不会丢失绘制请求（通过 pending 标记）
+	 */
+	const scheduleDraw = () => {
+		// 如果已经有待执行的动画帧，标记为 pending 并返回
+		if (rafRef.current != null) {
+			pendingRef.current = true;
+			return;
+		}
+		
+		// 请求新的动画帧
+		rafRef.current = requestAnimationFrame(() => {
+			rafRef.current = null;
+			draw(); // 执行绘制
+			
+			// 如果绘制期间有新的绘制请求，递归调度
+			if (pendingRef.current) {
+				pendingRef.current = false;
+				scheduleDraw();
+			}
+		});
+	};
+
+	/**
+	 * 根据设备像素比调整Canvas尺寸
+	 * 确保在高DPI设备上显示清晰的图形
+	 */
+	const resizeCanvasToDPR = () => {
+		const canvas = canvasRef.current;
+		const wrap = wrapRef.current;
+		if (!canvas || !wrap) return;
+
+		const width = wrap.clientWidth;
+		const height = wrap.clientHeight;
+		viewportRef.current = { width, height };
+
+		const devicePixelRatio = window.devicePixelRatio || 1;
+		canvas.style.width = `${width}px`;
+		canvas.style.height = `${height}px`;
+		canvas.width = Math.floor(width * devicePixelRatio);
+		canvas.height = Math.floor(height * devicePixelRatio);
+	};
+
+	// 坐标转换工具函数
 
 	/**
 	 * 将客户端坐标转换为屏幕坐标
@@ -147,41 +244,29 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 	};
 
 	/**
-	 * 将屏幕坐标转换为世界坐标（考虑视口变换）（根据setTransform反推）
-	 * @param sx 屏幕X坐标
-	 * @param sy 屏幕Y坐标
-	 * @returns 世界坐标对象
-	 */
-	const screenToWorldPx = (screenX: number, screenY: number) => {
-		const { translateX, translateY, scale } = viewRef.current;
-		// 世界坐标 = (屏幕坐标 - 平移) / 缩放
-		return { worldX: (screenX - translateX) / scale, worldY: (screenY - translateY) / scale };
-	};
+		 * 将屏幕坐标转换为世界坐标（考虑视口变换）（根据setTransform反推）
+		 * @param sx 屏幕X坐标
+		 * @param sy 屏幕Y坐标
+		 * @returns 世界坐标对象
+		 */
+		const screenToWorldPx = (screenX: number, screenY: number) => {
+			const { translateX, translateY, scale } = viewRef.current;
+			// 世界坐标 = (屏幕坐标 - 平移) / 缩放
+			return { worldX: (screenX - translateX) / scale, worldY: (screenY - translateY) / scale };
+		};
 
 	/**
-	 * 将屏幕坐标转换为网格单元格坐标
-	 * @param sx 屏幕X坐标
-	 * @param sy 屏幕Y坐标
-	 * @returns 单元格坐标对象
-	 */
-	const getCellFromScreen = (screenX: number, screenY: number): Cell => {
-		const { worldX, worldY } = screenToWorldPx(screenX, screenY);
-		// worldX/Y 是世界坐标（像素），除以 SIZE(10) 得到格子坐标
-		const cell = { x: Math.floor(worldX / SIZE), y: Math.floor(worldY / SIZE) };
-		return clampCell(cell);
-	};
-
-	/**
-	 * 找到离屏幕坐标最近的点坐标
-	 * @param screenX 
-	 * @param screenY 
-	 * @returns 
-	 */
-	const getPointFromScreen = (screenX: number, screenY: number): Point => {
-		const { worldX, worldY } = screenToWorldPx(screenX, screenY);
-		const cell = { x: Math.round(worldX / SIZE), y: Math.round(worldY / SIZE) };
-		return clampCell(cell);
-	};
+		 * 将屏幕坐标转换为网格单元格坐标
+		 * @param sx 屏幕X坐标
+		 * @param sy 屏幕Y坐标
+		 * @returns 单元格坐标对象
+		 */
+		const getCellFromScreen = (screenX: number, screenY: number): Cell => {
+			const { worldX, worldY } = screenToWorldPx(screenX, screenY);
+			// worldX/Y 是世界坐标（像素），除以 SIZE(10) 得到格子坐标
+			const cell = { x: Math.floor(worldX / SIZE), y: Math.floor(worldY / SIZE) };
+			return clampCell(cell);
+		};
 
 	/**
 	 * 将客户端坐标直接转换为网格单元格坐标
@@ -196,157 +281,359 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 	};
 
 	/**
-	 * 切换单元格的选中状态
-	 * @param c 要切换的单元格
-	 */
-	const toggleCell = (cell: Cell) => {
-		// 限制单元格在画布范围内
-		const clampedCell = clampCell(cell);
-
-		setError("");
-		setSelected((prev) => {
-			const key = keyOf(clampedCell);
-			const has = prev.some((prevCell) => keyOf(prevCell) === key);
-			return has ? prev.filter((prevCell) => keyOf(prevCell) !== key) : [...prev, clampedCell];
-		});
-	};
-
-	/**
-	 * 通过单元格命中测试，返回最内层空间ID（重叠时选面积最小的）
-	 */
-	const hitTestInnermostSpaceIdByCell = (cell: Cell): string | null => {
-		const clampedCell = clampCell(cell);
-		const spaceList = spacesRef.current;
-		if (!spaceList.length) return null;
-		const map = spaceCellSetRef.current;
-		const cellKey = `${clampedCell.x},${clampedCell.y}`;
-		let bestId: string | null = null;
-		let bestArea = Infinity;
-		for (let i = spaceList.length - 1; i >= 0; i--) {
-			const space = spaceList[i];
-			const set = map.get(space.id);
-			if (!set || !set.has(cellKey)) continue;
-			const area = space.cells.length;
-			if (area < bestArea) {
-				bestArea = area;
-				bestId = space.id;
+		 * 构建矩形区域内的所有单元格
+		 * @param a 第一个角点单元格
+		 * @param b 对角单元格
+		 * @returns 矩形区域内所有单元格的数组
+		 */
+		const buildCellsInRect = (cellA: Cell, cellB: Cell) => {
+			const minX = Math.min(cellA.x, cellB.x);
+			const maxX = Math.max(cellA.x, cellB.x);
+			const minY = Math.min(cellA.y, cellB.y);
+			const maxY = Math.max(cellA.y, cellB.y);
+			const result: Cell[] = [];
+			
+			// 限制在画布范围内
+			const clampedMinX = Math.max(0, minX);
+			const clampedMaxX = Math.min(MAX_CANVAS_SIZE - 1, maxX);
+			const clampedMinY = Math.max(0, minY);
+			const clampedMaxY = Math.min(MAX_CANVAS_SIZE - 1, maxY);
+			
+			for (let y = clampedMinY; y <= clampedMaxY; y++) {
+				for (let x = clampedMinX; x <= clampedMaxX; x++) result.push({ x, y });
 			}
-		}
-		return bestId;
-	};
+			return result;
+		};
 
 	/**
-	 * 通过ID更新空间的单元格范围
-	 */
-	const updateSpaceById = async (id: string, nextCells: Cell[]) => {
-		const clampedCells = nextCells.map(clampCell);
-		if (persistCallbacks) {
-			await persistCallbacks.onUpdate(id, clampedCells);
-			return;
-		}
-		setSpaces((prev) =>
-			prev.map((s) =>
-				s.id === id ? { ...s, cells: clampedCells, segs: cellsToBorderSegments(clampedCells) } : s
-			)
-		);
-	};
+		 * 切换单元格的选中状态
+		 * @param c 要切换的单元格
+		 */
+		const toggleCell = (cell: Cell) => {
+			// 限制单元格在画布范围内
+			const clampedCell = clampCell(cell);
+			
+			setError("");
+			setSelected((prev) => {
+				const key = keyOf(clampedCell);
+				const has = prev.some((prevCell) => keyOf(prevCell) === key);
+				return has ? prev.filter((prevCell) => keyOf(prevCell) !== key) : [...prev, clampedCell];
+			});
+		};
 
 	/**
-	 * 确认创建新空间（将当前选区生成为一个空间）
-	 */
-	const confirm = async () => {
-		const currentSelection = selectedRef.current;
-		const invalidCells = currentSelection.filter((cell) => !isValidCell(cell));
-		if (invalidCells.length > 0) {
-			setError("❌ 选中的区域超出画布范围");
-			return;
-		}
-		if (!isConnected(currentSelection)) {
-			setError("❌ 选中的区域必须连续");
-			return;
-		}
-		const cells = currentSelection.map((c) => ({ ...c }));
-		if (persistCallbacks) {
-			const name = `空间-${spacesRef.current.length + 1}`;
-			await persistCallbacks.onCreate(name, cells);
+		 * 通过单元格进行命中测试，返回最内层的形状ID
+		 * 支持形状重叠时的精确选择（选择面积最小的）
+		 * @param cell 要测试的单元格
+		 * @returns 命中的形状ID或null
+		 */
+		const hitTestInnermostShapeIdByCell = (cell: Cell): string | null => {
+			// 限制单元格在画布范围内
+			const clampedCell = clampCell(cell);
+			const shapes = shapesRef.current;
+			if (!shapes.length) return null;
+			const map = shapeCellSetRef.current;
+			const cellKey = `${clampedCell.x},${clampedCell.y}`;
+
+			let bestId: string | null = null;
+			let bestArea = Infinity;
+
+			// 从后往前遍历，优先选择上层的形状
+			for (let i = shapes.length - 1; i >= 0; i--) {
+				const shape = shapes[i];
+				const set = map.get(shape.id);
+				if (!set || !set.has(cellKey)) continue;
+				const area = shape.cells.length;
+				// 选择面积最小的形状（最精确的）
+				if (area < bestArea) {
+					bestArea = area;
+					bestId = shape.id;
+				}
+			}
+			return bestId;
+		};
+
+	/**
+		 * 通过ID更新形状的单元格
+		 * @param id 形状ID
+		 * @param nextCells 新的单元格数组
+		 */
+		const updateShapeById = (id: string, nextCells: Cell[]) => {
+			// 限制所有单元格在画布范围内
+			const clampedCells = nextCells.map(clampCell);
+			
+			setShapes((prev) =>
+				prev.map((shape) =>
+					shape.id === id
+						? { ...shape, cells: clampedCells, segs: cellsToBorderSegments(clampedCells) }
+						: shape,
+				),
+			);
+		};
+
+	/**
+		 * 确认创建新形状
+		 * 验证选中的单元格是否连续且在画布范围内，然后创建新形状
+		 */
+		const confirm = () => {
+			const currentSelection = selectedRef.current;
+			
+			// 验证选中的单元格是否都在有效范围内
+			const invalidCells = currentSelection.filter(cell => !isValidCell(cell));
+			if (invalidCells.length > 0) {
+				setError("❌ 选中的方块超出画布范围");
+				return;
+			}
+			
+			if (!isConnected(currentSelection)) {
+				setError("❌ 选中的方块不连续");
+				return;
+			}
+			
+			const segments = cellsToBorderSegments(currentSelection);
+			const id = `${Date.now()}-${Math.random()}`;
+
+			setShapes((prev) => [
+				...prev,
+				{ id, cells: currentSelection.map((cell) => ({ ...cell })), segs: segments },
+			]);
+
 			setSelected([]);
 			setError("");
-			return;
-		}
-		const segs = cellsToBorderSegments(currentSelection);
-		const id = `space-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-		const name = `空间-${spacesRef.current.length + 1}`;
-		setSpaces((prev) => [...prev, { id, name, cells, segs }]);
-		setSelected([]);
-		setError("");
-		setSelectedSpaceId(id);
-	};
+			setSelectedShapeId(id);
+		};
 
+	/**
+	 * 清空当前选中的单元格
+	 */
 	const clearSelected = () => {
 		setSelected([]);
 		setError("");
 	};
 
 	/**
-	 * 清空所有空间及关联物品
+	 * 清空所有形状
 	 */
-	const clearSpaces = () => {
-		setSpaces([]);
-		setItems([]);
+	const clearShapes = () => {
+		setShapes([]);
 		setError("");
-		hoverSpaceIdRef.current = null;
-		setSelectedSpaceId(null);
+		hoverShapeIdRef.current = null;
+		setSelectedShapeId(null);
 		scheduleDraw();
 	};
 
-	/** 更新空间名称 */
-	const updateSpaceName = (id: string, name: string) => {
-		setSpaces((prev) => prev.map((s) => (s.id === id ? { ...s, name } : s)));
-	};
-
-	/** 添加物品到当前选中空间 */
-	const addItem = () => {
-		const sid = selectedSpaceIdRef.current;
-		if (!sid) return;
-		const itemId = `item-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-		setItems((prev) => [...prev, { id: itemId, spaceId: sid, name: "未命名物品", quantity: 1 }]);
-	};
-
-	/** 更新物品 */
-	const updateItem = (itemId: string, patch: Partial<Pick<Item, "name" | "quantity">>) => {
-		setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, ...patch } : i)));
-	};
-
-	/** 删除物品 */
-	const removeItem = (itemId: string) => {
-		setItems((prev) => prev.filter((i) => i.id !== itemId));
-	};
-
 	/**
-	 * 绘制画布内容
-	 * 包括网格背景、选中单元格、形状轮廓、悬停效果等
-	 */
-	const draw = () => {
-		const canvas = canvasRef.current;
-		if (!canvas) return;
-		const ctx = canvas.getContext("2d");
-		if (!ctx) return;
+		 * 绘制画布内容
+		 * 包括网格背景、选中单元格、形状轮廓、悬停效果等
+		 */
+		const draw = () => {
+			const canvas = canvasRef.current;
+			if (!canvas) return;
+			const ctx = canvas.getContext("2d");
+			if (!ctx) return;
 
-		const { scale } = viewRef.current;
-		const spaceList = spacesRef.current;
-		resetCanvas(ctx, canvas, viewportRef.current, viewRef.current, screenToWorldPx);
-		drawSelectedCells(ctx, selectedRef.current);
-		drawSpaces(ctx, spaceList, scale);
-		const hoverSpace = spaceList.find((s) => s.id === hoverSpaceIdRef.current);
-		if (hoverSpace) drawHoverSpace(ctx, hoverSpace, scale);
-		drawBoxSelectCells(ctx, spaceList, selectedSpaceIdRef.current, scale);
-		drawActiveBoxSelectCells(ctx, dragStateRef.current, scale);
-		console.log(dragStateRef.current,'startPoint');
-		drawPoint(ctx, dragStateRef.current.startPoint || {x:0,y:0}, scale);
-	};
+			const devicePixelRatio = window.devicePixelRatio || 1;
+			const { width, height } = viewportRef.current;
 
-	const scheduleDraw = useScheduleDraw(draw);
-	const viewportRef = useInitAndResizeCanvas(canvasRef, wrapRef, viewRef, scheduleDraw);
+			// 完全重置变换并清空画布
+			ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			
+			// 先绘制整个视口的黑色背景
+			ctx.fillStyle = "#000000";
+			ctx.fillRect(0, 0, width, height);
+
+			// 设置视口变换（平移和缩放）
+			const { translateX, translateY, scale } = viewRef.current;
+			ctx.setTransform(
+				devicePixelRatio * scale,
+				0,
+				0,
+				devicePixelRatio * scale,
+				devicePixelRatio * translateX,
+				devicePixelRatio * translateY,
+			);
+
+			// 计算可见区域的世界坐标范围
+			const topLeft = screenToWorldPx(0, 0);
+			const bottomRight = screenToWorldPx(width, height);
+			const minWorldX = topLeft.worldX;
+			const maxWorldX = bottomRight.worldX;
+			const minWorldY = topLeft.worldY;
+			const maxWorldY = bottomRight.worldY;
+
+			// 计算画布边界的世界坐标（4000*4000像素）
+			const canvasMinX = 0;
+			const canvasMaxX = MAX_CANVAS_SIZE; // 4000像素
+			const canvasMinY = 0;
+			const canvasMaxY = MAX_CANVAS_SIZE; // 4000像素
+			
+			// 绘制画布区域的白色背景（带圆角）
+			const cornerRadius = 16 / scale; // 圆角半径，根据缩放调整
+			ctx.fillStyle = "#ffffff";
+			ctx.beginPath();
+			ctx.roundRect(canvasMinX, canvasMinY, canvasMaxX - canvasMinX, canvasMaxY - canvasMinY, cornerRadius);
+			ctx.fill();
+
+			// 计算需要绘制的网格范围（限制在画布内）
+				// 注意：现在画布是4000*4000像素，但格子大小仍然是SIZE=10
+				const minGridX = Math.floor(Math.max(minWorldX, canvasMinX) / SIZE) - 1;
+				const maxGridX = Math.floor(Math.min(maxWorldX, canvasMaxX) / SIZE) + 1;
+				const minGridY = Math.floor(Math.max(minWorldY, canvasMinY) / SIZE) - 1;
+				const maxGridY = Math.floor(Math.min(maxWorldY, canvasMaxY) / SIZE) + 1;
+
+			// 绘制网格线（只在画布范围内绘制）
+				ctx.lineWidth = 1 / scale;
+				ctx.strokeStyle = "#ff000012";
+				ctx.beginPath();
+				for (let gridX = minGridX; gridX <= maxGridX; gridX++) {
+					const x = gridX * SIZE;
+					// 只在画布范围内绘制竖线
+					if (x >= canvasMinX && x <= canvasMaxX) {
+						ctx.moveTo(x, Math.max(minWorldY, canvasMinY));
+						ctx.lineTo(x, Math.min(maxWorldY, canvasMaxY));
+					}
+				}
+				for (let gridY = minGridY; gridY <= maxGridY; gridY++) {
+					const y = gridY * SIZE;
+					// 只在画布范围内绘制横线
+					if (y >= canvasMinY && y <= canvasMaxY) {
+						ctx.moveTo(Math.max(minWorldX, canvasMinX), y);
+						ctx.lineTo(Math.min(maxWorldX, canvasMaxX), y);
+					}
+				}
+				ctx.stroke();
+
+			// 绘制选中的单元格
+				const selectedCells = selectedRef.current;
+				if (selectedCells.length) {
+					ctx.fillStyle = "rgba(59,130,246,0.85)";
+					for (const cell of selectedCells) {
+						// 只绘制在画布范围内的单元格（4000*4000像素范围内）
+						if (isValidCell(cell)) {
+							ctx.fillRect(cell.x * SIZE, cell.y * SIZE, SIZE, SIZE);
+						}
+					}
+				}
+
+			// 绘制所有形状的轮廓
+			const shapes = shapesRef.current;
+			if (shapes.length) {
+				ctx.lineWidth = 2 / scale;
+				ctx.strokeStyle = "#2563eb";
+				ctx.lineCap = "round";
+				ctx.lineJoin = "round"; // 圆角连接（圆滑）
+
+				for (const shape of shapes) {
+					if (shape.segs.length === 0) continue;
+
+					ctx.beginPath();
+					// 第一个线段
+					const first = shape.segs[0];
+					ctx.moveTo(first.x1 * SIZE, first.y1 * SIZE);
+					ctx.lineTo(first.x2 * SIZE, first.y2 * SIZE);
+
+					// 后续线段（已排序，首尾相连）
+					for (let i = 1; i < shape.segs.length; i++) {
+						const seg = shape.segs[i];
+						ctx.lineTo(seg.x2 * SIZE, seg.y2 * SIZE);
+					}
+
+					ctx.closePath(); // 闭合路径
+					ctx.stroke();
+				}
+			}
+
+			// 绘制悬停形状的高亮效果
+				const hoverId = hoverShapeIdRef.current;
+				if (hoverId) {
+					const hoverShape = shapes.find((shape) => shape.id === hoverId);
+					if (hoverShape && hoverShape.segs.length > 0) {
+						// 填充半透明背景（只在画布范围内）
+						ctx.fillStyle = "rgba(37,99,235,0.10)";
+						for (const cell of hoverShape.cells) {
+							if (isValidCell(cell)) {
+								ctx.fillRect(cell.x * SIZE, cell.y * SIZE, SIZE, SIZE);
+							}
+						}
+
+					// 绘制高亮轮廓（连续路径）
+					ctx.lineWidth = 4 / scale;
+					ctx.strokeStyle = "#1d4ed8";
+					ctx.lineCap = "round";
+					ctx.lineJoin = "round";
+
+					ctx.beginPath();
+					const first = hoverShape.segs[0];
+					ctx.moveTo(first.x1 * SIZE, first.y1 * SIZE);
+					ctx.lineTo(first.x2 * SIZE, first.y2 * SIZE);
+
+					for (let i = 1; i < hoverShape.segs.length; i++) {
+						const seg = hoverShape.segs[i];
+						ctx.lineTo(seg.x2 * SIZE, seg.y2 * SIZE);
+					}
+
+					ctx.closePath();
+					ctx.stroke();
+				}
+			}
+
+			// 绘制选中形状的持久轮廓
+				const selectedShapeIdValue = selectedShapeIdRef.current;
+				if (selectedShapeIdValue) {
+					const selectedShape = shapes.find((shape) => shape.id === selectedShapeIdValue);
+					if (selectedShape && selectedShape.segs.length > 0) {
+						ctx.lineWidth = 5 / scale;
+						ctx.strokeStyle = "rgba(0,0,0,0.35)";
+						ctx.lineCap = "round";
+						ctx.lineJoin = "round";
+
+						ctx.beginPath();
+						const first = selectedShape.segs[0];
+						ctx.moveTo(first.x1 * SIZE, first.y1 * SIZE);
+						ctx.lineTo(first.x2 * SIZE, first.y2 * SIZE);
+
+						for (let i = 1; i < selectedShape.segs.length; i++) {
+							const seg = selectedShape.segs[i];
+							ctx.lineTo(seg.x2 * SIZE, seg.y2 * SIZE);
+						}
+
+						ctx.closePath();
+						ctx.stroke();
+					}
+				}
+
+			// 绘制框选单元格的覆盖层（激活状态）
+				const state = dragStateRef.current;
+				if (
+					state.mode === "boxSelectCells" &&
+					state.activated &&
+					state.startCell &&
+					state.currentCell
+				) {
+					const startCell = clampCell(state.startCell);
+					const endCell = clampCell(state.currentCell);
+					const minX = Math.min(startCell.x, endCell.x);
+					const maxX = Math.max(startCell.x, endCell.x);
+					const minY = Math.min(startCell.y, endCell.y);
+					const maxY = Math.max(startCell.y, endCell.y);
+
+					const left = minX * SIZE;
+					const top = minY * SIZE;
+					const rectWidth = (maxX - minX + 1) * SIZE;
+					const rectHeight = (maxY - minY + 1) * SIZE;
+
+					// 只在画布范围内绘制框选覆盖层
+					if (left >= canvasMinX && left + rectWidth <= canvasMaxX && 
+						top >= canvasMinY && top + rectHeight <= canvasMaxY) {
+						ctx.fillStyle = "rgba(37,99,235,0.10)";
+						ctx.strokeStyle = "#2563eb";
+						ctx.lineWidth = 1 / scale;
+						ctx.fillRect(left, top, rectWidth, rectHeight);
+						ctx.strokeRect(left, top, rectWidth, rectHeight);
+					}
+				}
+		};
 
 	/**
 	 * 鼠标滚轮事件处理
@@ -355,110 +642,149 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 	 * screenX,screenY = wordX * scale + tarnslate
 	 */
 	const onWheel = (e: React.WheelEvent) => {
+		// e.preventDefault();
 		const screen = getScreenXYFromClient(e.clientX, e.clientY);
 		if (!screen) return;
 
 		const { screenX, screenY } = screen;
-		const { translateX, translateY, scale } = viewRef.current;
 
-		// 滚轮直接缩放（以鼠标位置为中心）
-		const worldX = (screenX - translateX) / scale;
-		const worldY = (screenY - translateY) / scale;
-		const zoomFactor = Math.exp(-e.deltaY * 0.001);
-		const nextScale = clamp(scale * zoomFactor, 0.25, 8);
-		const nextTranslateX = screenX - worldX * nextScale;
-		const nextTranslateY = screenY - worldY * nextScale;
+		// Ctrl/Cmd + 滚轮：缩放
+		if (e.ctrlKey || e.metaKey) {
+			const { translateX, translateY, scale } = viewRef.current;
+			const worldX = (screenX - translateX) / scale;
+			const worldY = (screenY - translateY) / scale;
 
+			// 计算缩放因子
+			const zoomFactor = Math.exp(-e.deltaY * 0.001);
+			const nextScale = clamp(scale * zoomFactor, 0.25, 8);
+
+			// 以鼠标位置为中心进行缩放
+			const nextTranslateX = screenX - worldX * nextScale;
+			const nextTranslateY = screenY - worldY * nextScale;
+			
+			viewRef.current = {
+				translateX: nextTranslateX,
+				translateY: nextTranslateY,
+				scale: nextScale,
+			};
+			scheduleDraw();
+			return;
+		}
+
+		// 普通滚轮：平移
 		viewRef.current = {
-			translateX: nextTranslateX,
-			translateY: nextTranslateY,
-			scale: nextScale,
+			...viewRef.current,
+			translateX: viewRef.current.translateX - e.deltaX,
+			translateY: viewRef.current.translateY - e.deltaY,
 		};
 		scheduleDraw();
 	};
 
-	/** 回到中心：将视口重置为画布居中、初始缩放 */
-	const resetViewToCenter = () => {
-		const { width, height } = viewportRef.current;
-		const canvasSize = getCanvasPixelSize();
-		const initialScale = Math.min(width / canvasSize.width, height / canvasSize.height);
-		const canvasCenterX = canvasSize.width / 2;
-		const canvasCenterY = canvasSize.height / 2;
-		const reasonableScale = Math.max(0.5, initialScale);
-		viewRef.current = {
-			translateX: width / 2 - canvasCenterX * reasonableScale,
-			translateY: height / 2 - canvasCenterY * reasonableScale,
-			scale: reasonableScale,
-		};
-		scheduleDraw();
-	};
+	// 初始化和尺寸调整
+		useEffect(() => {
+			// 初始化Canvas和视口
+			resizeCanvasToDPR();
+			const { width, height } = viewportRef.current;
+			
+			// 画布像素计算说明：
+			// - 画布尺寸：4000 × 4000 像素
+			// - 每个格子：10 × 10 像素
+			// - 总格子数：400 × 400 个
+			// - 画布世界坐标范围：(0, 0) 到 (4000, 4000)
+			
+			// 设置初始视口为中心，缩放级别适合显示4000*4000像素的画布
+			const canvasSize = getCanvasPixelSize();
+			const initialScale = Math.min(width / canvasSize.width, height / canvasSize.height);
+			
+			// 计算画布中心的世界坐标
+			const canvasCenterX = canvasSize.width / 2; // 2000
+			const canvasCenterY = canvasSize.height / 2; // 2000
+			
+			// 设置视口变换，使画布中心对齐到屏幕中心
+			// screenX = worldX * scale + translateX
+			// 要使画布中心(2000, 2000)显示在屏幕中心(width/2, height/2)
+			// translateX = screenX - worldX * scale = width/2 - 2000 * scale
+			// translateY = screenY - worldY * scale = height/2 - 2000 * scale
+			
+			// 修复：使用合理的初始缩放级别，避免格子过小
+			const reasonableScale = Math.max(0.5, initialScale); // 最小缩放0.5，确保格子不会太小
+			
+			viewRef.current = { 
+				translateX: width / 2 - canvasCenterX * reasonableScale, 
+				translateY: height / 2 - canvasCenterY * reasonableScale, 
+				scale: reasonableScale 
+			};
+			draw();
 
+		// 窗口尺寸变化处理
+		const onResize = () => {
+			resizeCanvasToDPR();
+			draw();
+		};
+		window.addEventListener("resize", onResize);
+
+		// 使用ResizeObserver监听容器尺寸变化
+		const resizeObserver =
+			typeof ResizeObserver !== "undefined"
+				? new ResizeObserver(() => {
+						resizeCanvasToDPR();
+						draw();
+					})
+				: null;
+		if (resizeObserver && wrapRef.current) resizeObserver.observe(wrapRef.current);
+
+		// 清理函数
+		return () => {
+			window.removeEventListener("resize", onResize);
+			if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+			if (resizeObserver) resizeObserver.disconnect();
+		};
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
+
+	// 当形状数据变化时重建单元格集合映射
 	useEffect(() => {
 		const map = new Map<string, Set<string>>();
-		for (const space of spaces) {
-			map.set(space.id, new Set(space.cells.map((cell) => `${cell.x},${cell.y}`)));
+		for (const shape of shapes) {
+			map.set(shape.id, new Set(shape.cells.map((cell) => `${cell.x},${cell.y}`)));
 		}
-		spaceCellSetRef.current = map;
-		if (hoverSpaceIdRef.current) {
-			const exists = spaces.some((s) => s.id === hoverSpaceIdRef.current);
-			if (!exists) hoverSpaceIdRef.current = null;
+		shapeCellSetRef.current = map;
+
+		// 清理悬停状态（如果悬停的形状已被删除）
+		if (hoverShapeIdRef.current) {
+			const exists = shapes.some((shape) => shape.id === hoverShapeIdRef.current);
+			if (!exists) hoverShapeIdRef.current = null;
 		}
 		scheduleDraw();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [spaces]);
+	}, [shapes]);
 
+	// 当选中状态变化时重绘
 	useEffect(() => {
 		scheduleDraw();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [selected, selectedSpaceId]);
+	}, [selected, selectedShapeId]);
+
+	// space key
+	useEffect(() => {
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (e.code === "Space") {
+				e.preventDefault();
+				spaceRef.current = true;
+			}
+		};
+		const onKeyUp = (e: KeyboardEvent) => {
+			if (e.code === "Space") spaceRef.current = false;
+		};
+		window.addEventListener("keydown", onKeyDown, { passive: false });
+		window.addEventListener("keyup", onKeyUp);
+		return () => {
+			window.removeEventListener("keydown", onKeyDown);
+			window.removeEventListener("keyup", onKeyUp);
+		};
+	}, []);
 
 	// 指针事件处理函数
-
-	const handleEditMode = (screen: Screen, startCell: Cell, tool: ToolMode) => {
-		console.log(tool,'tool');
-		switch (true) {
-			case tool === "select" || tool === "deselect":
-				dragStateRef.current = {
-					mode: "boxSelectCells",
-					startScreenX: screen.screenX,
-					startScreenY: screen.screenY,
-					baseTranslateX: viewRef.current.translateX,
-					baseTranslateY: viewRef.current.translateY,
-					startCell,
-					currentCell: startCell,
-					spaceId: null,
-					baseSpaceCells: null,
-					activated: false,
-					shiftAtStart: true,
-					boxSelectSubtract: tool === "deselect",
-					startPoint: null,
-				};
-				break;
-			case tool === "cleanSegments":
-				const startPoint = getPointFromScreen(screen.screenX, screen.screenY);
-				console.log(startPoint,'startPoint');
-
-				dragStateRef.current = {
-					mode: "cleanSegments",
-					startScreenX: screen.screenX,
-					startScreenY: screen.screenY,
-					baseTranslateX: viewRef.current.translateX,
-					baseTranslateY: viewRef.current.translateY,
-					startCell,
-					currentCell: startCell,
-					spaceId: null,
-					baseSpaceCells: null,
-					activated: false,
-					shiftAtStart: true,
-					boxSelectSubtract: tool === "deselect",
-					startPoint: startPoint,
-				};
-				break;
-			default:
-				break;
-		}
-		scheduleDraw();
-	};
 
 	/**
 	 * 指针按下事件处理
@@ -476,7 +802,7 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 		(e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
 
 		// Space键：进入平移模式
-		if (spaceKeyRef.current) {
+		if (spaceRef.current) {
 			dragStateRef.current = {
 				mode: "pan",
 				startScreenX: screen.screenX,
@@ -485,31 +811,40 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 				baseTranslateY: viewRef.current.translateY,
 				startCell: null,
 				currentCell: null,
-				spaceId: null,
-				baseSpaceCells: null,
+				shapeId: null,
+				baseShapeCells: null,
 				activated: true,
 				shiftAtStart: false,
-				boxSelectSubtract: false,
 			};
 			return;
 		}
 
 		const startCell = getCellFromScreen(screen.screenX, screen.screenY);
 		const shift = e.shiftKey;
-		const tool = toolModeRef.current;
-		const canEdit = editMode;
-		if (canEdit) {
-		}
-		// 仅编辑模式下允许框选/取消工具
-		if (canEdit) {
-			handleEditMode(screen, startCell, tool);
-		} else {
-		}
-		return;
 
-		const hitId = hitTestInnermostSpaceIdByCell(startCell);
+		// Shift键：强制进入框选单元格模式
+		if (shift) {
+			dragStateRef.current = {
+				mode: "boxSelectCells",
+				startScreenX: screen.screenX,
+				startScreenY: screen.screenY,
+				baseTranslateX: viewRef.current.translateX,
+				baseTranslateY: viewRef.current.translateY,
+				startCell,
+				currentCell: startCell,
+				shapeId: null,
+				baseShapeCells: null,
+				activated: false,
+				shiftAtStart: true,
+			};
+			return;
+		}
+
+		// 非Shift键：尝试命中测试形状
+		const hitId = hitTestInnermostShapeIdByCell(startCell);
 		if (hitId) {
-			const space = spacesRef.current.find((s) => s.id === hitId);
+			// 命中形状：进入移动形状模式
+			const shape = shapesRef.current.find((existingShape) => existingShape.id === hitId);
 			dragStateRef.current = {
 				mode: "moveShape",
 				startScreenX: screen.screenX,
@@ -518,35 +853,17 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 				baseTranslateY: viewRef.current.translateY,
 				startCell,
 				currentCell: startCell,
-				spaceId: hitId,
-				baseSpaceCells: space ? space.cells.map((cell) => ({ ...cell })) : null,
+				shapeId: hitId,
+				baseShapeCells: shape ? shape.cells.map((cell) => ({ ...cell })) : null,
 				activated: false,
 				shiftAtStart: false,
-				boxSelectSubtract: false,
 			};
-			hoverSpaceIdRef.current = hitId;
+			hoverShapeIdRef.current = hitId;
 			scheduleDraw();
 			return;
 		}
 
-		// 空白处拖拽：编辑模式下框选，非编辑模式忽略
-		if (!canEdit && persistCallbacks) {
-			dragStateRef.current = {
-				mode: "ignore",
-				startScreenX: screen.screenX,
-				startScreenY: screen.screenY,
-				baseTranslateX: viewRef.current.translateX,
-				baseTranslateY: viewRef.current.translateY,
-				startCell,
-				currentCell: startCell,
-				spaceId: null,
-				baseSpaceCells: null,
-				activated: false,
-				shiftAtStart: false,
-				boxSelectSubtract: false,
-			};
-			return;
-		}
+		// 未命中形状：进入框选单元格模式
 		dragStateRef.current = {
 			mode: "boxSelectCells",
 			startScreenX: screen.screenX,
@@ -555,11 +872,10 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 			baseTranslateY: viewRef.current.translateY,
 			startCell,
 			currentCell: startCell,
-			spaceId: null,
-			baseSpaceCells: null,
+			shapeId: null,
+			baseShapeCells: null,
 			activated: false,
 			shiftAtStart: false,
-			boxSelectSubtract: false,
 		};
 	};
 
@@ -569,24 +885,17 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 	 */
 	const onPointerMove = (e: React.PointerEvent) => {
 		const state = dragStateRef.current;
-		console.log(state.mode,'state');
+
 		// 非拖拽状态：处理悬停效果
 		if (state.mode === "none") {
 			const cell = getCellFromClient(e.clientX, e.clientY);
-			const nextHoverId = cell ? hitTestInnermostSpaceIdByCell(cell) : null;
-			if (hoverSpaceIdRef.current !== nextHoverId) {
-				hoverSpaceIdRef.current = nextHoverId;
+			const nextHoverId = cell ? hitTestInnermostShapeIdByCell(cell) : null;
+			if (hoverShapeIdRef.current !== nextHoverId) {
+				hoverShapeIdRef.current = nextHoverId;
 				scheduleDraw();
 			}
 			return;
 		}
-		if(state.mode === "cleanSegments") {
-			const currentPoint = getPointFromScreen(e.clientX, e.clientY);
-			console.log(currentPoint,'currentPoint');
-			return;
-		}
-
-
 
 		const screen = getScreenXYFromClient(e.clientX, e.clientY);
 		if (!screen) return;
@@ -614,23 +923,23 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 		const currentCell = getCellFromScreen(screen.screenX, screen.screenY);
 		state.currentCell = currentCell;
 
-		// 移动形状模式（仅编辑模式下允许拖动改变范围）
+		// 移动形状模式（非shift才可能进入）
 		if (
 			state.mode === "moveShape" &&
 			state.activated &&
-			state.spaceId &&
+			state.shapeId &&
 			state.startCell &&
-			state.baseSpaceCells &&
-			editMode
+			state.baseShapeCells
 		) {
+			// 计算形状移动的偏移量
 			const deltaCellX = currentCell.x - state.startCell.x;
 			const deltaCellY = currentCell.y - state.startCell.y;
-			const movedCells = state.baseSpaceCells.map((cell) => ({
+			const movedCells = state.baseShapeCells.map((cell) => ({
 				x: cell.x + deltaCellX,
 				y: cell.y + deltaCellY,
 			}));
-			updateSpaceById(state.spaceId, movedCells);
-			hoverSpaceIdRef.current = state.spaceId;
+			updateShapeById(state.shapeId, movedCells);
+			hoverShapeIdRef.current = state.shapeId;
 			scheduleDraw();
 			return;
 		}
@@ -648,65 +957,52 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 	const onPointerUp = () => {
 		const state = dragStateRef.current;
 		if (state.mode === "none") return;
-		if (state.mode === "ignore") {
-			dragStateRef.current = {
-				mode: "none",
-				startScreenX: 0,
-				startScreenY: 0,
-				baseTranslateX: 0,
-				baseTranslateY: 0,
-				startCell: null,
-				currentCell: null,
-				spaceId: null,
-				baseSpaceCells: null,
-				activated: false,
-				shiftAtStart: false,
-				boxSelectSubtract: false,
-			};
-			return;
-		}
 
 		// 移动形状模式
 		if (state.mode === "moveShape") {
-			if (!state.activated && state.spaceId) {
-				setSelectedSpaceId(state.spaceId);
-				hoverSpaceIdRef.current = state.spaceId;
-				persistCallbacks?.onSpaceSelect(state.spaceId);
-			} else if (state.spaceId) {
-				setSelectedSpaceId(state.spaceId);
+			if (!state.activated && state.shapeId) {
+				// 未激活：点击选中形状
+				setSelectedShapeId(state.shapeId);
+				hoverShapeIdRef.current = state.shapeId;
+			} else if (state.shapeId) {
+				// 已激活：拖拽完成，保持选中状态
+				setSelectedShapeId(state.shapeId);
 			}
 		} else if (state.mode === "boxSelectCells") {
+			// Shift优先：click/drag都是对cell操作
 			if (state.shiftAtStart && state.startCell) {
 				if (!state.activated) {
-					if (toolModeRef.current !== "select" && toolModeRef.current !== "deselect") {
-						setSelectedSpaceId(null);
-						toggleCell(state.startCell);
-					}
+					// shift + click => 切换单元格选中状态
+					setSelectedShapeId(null);
+					toggleCell(state.startCell);
 				} else if (state.activated && state.currentCell) {
+					// shift + drag => 批量添加单元格
 					const batch = buildCellsInRect(state.startCell, state.currentCell);
-					if (state.boxSelectSubtract) {
-						setSelected((prev) => subtractCells(prev, batch));
-					} else {
-						setSelected((prev) => unionCells(prev, batch));
-					}
+					setSelected((prev) => unionCells(prev, batch));
 				}
 			} else {
+				// 非shift：只处理图形选中；空白不再toggle cell（必须Shift才能选cell）
 				if (state.startCell) {
 					if (!state.activated) {
-						const hitId = hitTestInnermostSpaceIdByCell(state.startCell);
+						const hitId = hitTestInnermostShapeIdByCell(state.startCell);
 						if (hitId) {
-							setSelectedSpaceId(hitId);
-							hoverSpaceIdRef.current = hitId;
-							persistCallbacks?.onSpaceSelect(hitId);
+							// 点击形状：选中形状
+							setSelectedShapeId(hitId);
+							hoverShapeIdRef.current = hitId;
 						} else {
-							setSelectedSpaceId(null);
-							hoverSpaceIdRef.current = null;
+							// 点击空白：仅取消图形选中
+							setSelectedShapeId(null);
+							hoverShapeIdRef.current = null;
 						}
+					} else {
+						// 非shift拖动空白：不框选cell（保持Figma行为：空白拖动通常是框选对象）
+						// 如果需要改成"空白拖动框选cell但不需要shift"，可以在这里修改
 					}
 				}
 			}
 		}
 
+		// 重置拖拽状态
 		dragStateRef.current = {
 			mode: "none",
 			startScreenX: 0,
@@ -715,11 +1011,10 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 			baseTranslateY: 0,
 			startCell: null,
 			currentCell: null,
-			spaceId: null,
-			baseSpaceCells: null,
+			shapeId: null,
+			baseShapeCells: null,
 			activated: false,
 			shiftAtStart: false,
-			boxSelectSubtract: false,
 		};
 
 		scheduleDraw();
@@ -730,159 +1025,52 @@ const CanvasGridSelector = (props: CanvasGridSelectorProps) => {
 	 * 清除悬停状态
 	 */
 	const onPointerLeave = () => {
-		if (dragStateRef.current.mode === "none" && hoverSpaceIdRef.current !== null) {
-			hoverSpaceIdRef.current = null;
+		if (dragStateRef.current.mode === "none" && hoverShapeIdRef.current !== null) {
+			hoverShapeIdRef.current = null;
 			scheduleDraw();
 		}
 	};
 
 	return (
-		<div className="flex-1 flex flex-col min-h-0">
-			{/* 非持久化模式（如 demo）才显示顶部栏 */}
-			{!persistCallbacks && (
-				<div className="flex flex-wrap items-center gap-3 shrink-0">
-					<button
-						onClick={() => void confirm()}
-						disabled={!selected.length}
-						className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-40"
-					>
-						新建空间
-					</button>
-					<button onClick={clearSelected} className="px-4 py-2 rounded border border-gray-300">
-						清空选中
-					</button>
-					<button onClick={clearSpaces} className="px-4 py-2 rounded border border-gray-300">
-						清空空间
-					</button>
-					<button onClick={resetViewToCenter} className="px-4 py-2 rounded border border-gray-300">
-						回到中心
-					</button>
-					{error && <span className="text-red-500">{error}</span>}
-				</div>
-			)}
-
-			{/* 画布 + 右侧工具（仅编辑模式且持久化时显示工具按钮） */}
-			<div className="flex flex-1 min-h-0">
-				<div
-					ref={wrapRef}
-					className="relative flex-1 border border-border overflow-hidden rounded-md"
+		<div className="p-6 space-y-4">
+			{/* 控制按钮区域 */}
+			<div className="flex flex-wrap items-center gap-3">
+				<button
+					onClick={confirm}
+					disabled={!selected.length}
+					className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-40"
 				>
-					<canvas
-						ref={canvasRef}
-						className="block touch-none"
-						onWheel={onWheel}
-						onPointerDown={onPointerDown}
-						onPointerMove={onPointerMove}
-						onPointerUp={onPointerUp}
-						onPointerLeave={onPointerLeave}
-					/>
-				</div>
-				{/* 编辑模式下才显示：选择 / 取消 / 新建空间（无 persistCallbacks 时始终显示） */}
-				{(editMode || !persistCallbacks) && (
-					<div className="flex flex-col gap-2 border-l border-border bg-muted/30 px-3 py-3 shrink-0 w-48 overflow-y-auto">
-						<Button
-							type="button"
-							variant={toolMode === "select" ? "default" : "outline"}
-							size="sm"
-							className="w-full justify-center"
-							onClick={() => setToolMode((m) => (m === "select" ? null : "select"))}
-						>
-							选择
-						</Button>
-						<Button
-							type="button"
-							variant={toolMode === "deselect" ? "secondary" : "outline"}
-							size="sm"
-							className="w-full justify-center"
-							onClick={() => setToolMode((m) => (m === "deselect" ? null : "deselect"))}
-						>
-							取消
-						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							className="w-full justify-center"
-							disabled={!selected.length}
-							onClick={() => void confirm()}
-						>
-							新建空间
-						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							className="w-full justify-center"
-							onClick={() => setToolMode((m) => (m === "cleanSegments" ? null : "cleanSegments"))}
-						>
-							清理线段
-						</Button>
-						{error && persistCallbacks && <span className="text-destructive text-xs">{error}</span>}
-						{!noItems &&
-							selectedSpaceId &&
-							(() => {
-								const space = spaces.find((s) => s.id === selectedSpaceId);
-								const spaceItems = items.filter((i) => i.spaceId === selectedSpaceId);
-								if (!space) return null;
-								return (
-									<div className="flex flex-col gap-2 border-t border-gray-200 pt-3">
-										<div className="text-xs font-medium text-gray-500">当前空间</div>
-										<input
-											type="text"
-											value={space.name}
-											onChange={(e) => updateSpaceName(space.id, e.target.value)}
-											className="px-2 py-1.5 rounded border border-gray-300 text-sm w-full"
-											placeholder="空间名称"
-										/>
-										<div className="text-xs font-medium text-gray-500 mt-1">物品列表</div>
-										<button
-											type="button"
-											onClick={addItem}
-											className="px-2 py-1 rounded border border-gray-300 text-sm bg-white"
-										>
-											+ 添加物品
-										</button>
-										<ul className="flex flex-col gap-1.5">
-											{spaceItems.map((item) => (
-												<li
-													key={item.id}
-													className="flex items-center gap-2 rounded border border-gray-200 bg-white p-2"
-												>
-													<input
-														type="text"
-														value={item.name}
-														onChange={(e) => updateItem(item.id, { name: e.target.value })}
-														className="flex-1 min-w-0 px-1.5 py-1 text-xs border border-transparent hover:border-gray-300 rounded"
-													/>
-													<input
-														type="number"
-														min={1}
-														value={item.quantity ?? 1}
-														onChange={(e) =>
-															updateItem(item.id, {
-																quantity: Math.max(1, parseInt(e.target.value, 10) || 1),
-															})
-														}
-														className="w-12 px-1 py-1 text-xs border border-gray-200 rounded"
-													/>
-													<button
-														type="button"
-														onClick={() => removeItem(item.id)}
-														className="text-red-500 hover:text-red-700 text-xs"
-													>
-														删除
-													</button>
-												</li>
-											))}
-										</ul>
-									</div>
-								);
-							})()}
-					</div>
-				)}
+					圈出来
+				</button>
+
+				<button onClick={clearSelected} className="px-4 py-2 rounded border border-gray-300">
+					清空选中
+				</button>
+
+				<button onClick={clearShapes} className="px-4 py-2 rounded border border-gray-300">
+					清空图形
+				</button>
+
+				{/* 错误消息显示 */}
+				{error && <span className="text-red-500">{error}</span>}
+			</div>
+
+			{/* 画布容器 */}
+			<div
+				ref={wrapRef}
+				className="relative w-full h-[70vh] border border-gray-300 overflow-hidden"
+			>
+				<canvas
+					ref={canvasRef}
+					className="block touch-none"
+					// onContextMenu={(e) => e.preventDefault()}
+					onWheel={onWheel}
+					onPointerDown={onPointerDown}
+					onPointerMove={onPointerMove}
+					onPointerUp={onPointerUp}
+					onPointerLeave={onPointerLeave}
+				/>
 			</div>
 		</div>
 	);
-};
-
-export { CanvasGridSelector };
+}

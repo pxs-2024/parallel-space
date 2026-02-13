@@ -14,7 +14,7 @@ type ViewInfo = {
 };
 
 const canvasMinX = 0;
-const canvasMinY = 0;	
+const canvasMinY = 0;
 const canvasMaxX = MAX_CANVAS_SIZE;
 const canvasMaxY = MAX_CANVAS_SIZE;
 
@@ -106,11 +106,7 @@ const drawGrid = (
 	ctx.stroke();
 };
 // 绘制空间
-export const drawSpaces = (
-	ctx: CanvasRenderingContext2D,
-	spaceList: Space[],
-	scale: number
-) => {
+export const drawSpaces = (ctx: CanvasRenderingContext2D, spaceList: Space[], scale: number) => {
 	if (spaceList.length) {
 		ctx.lineWidth = 2 / scale;
 		ctx.strokeStyle = "#2563eb";
@@ -164,7 +160,6 @@ export const drawSelectedCells = (ctx: CanvasRenderingContext2D, selectedCells: 
 
 // 绘制hover空间样式
 export const drawHoverSpace = (ctx: CanvasRenderingContext2D, hoverSpace: Space, scale: number) => {
-	
 	if (hoverSpace.segs.length > 0) {
 		ctx.fillStyle = "rgba(37,99,235,0.10)";
 		for (const cell of hoverSpace.cells) {
@@ -189,7 +184,12 @@ export const drawHoverSpace = (ctx: CanvasRenderingContext2D, hoverSpace: Space,
 };
 
 // 绘制选中空间样式
-export const drawBoxSelectCells = (ctx: CanvasRenderingContext2D, spaceList: Space[],selectedSpaceId: string | null, scale: number) => {
+export const drawBoxSelectCells = (
+	ctx: CanvasRenderingContext2D,
+	spaceList: Space[],
+	selectedSpaceId: string | null,
+	scale: number
+) => {
 	if (selectedSpaceId) {
 		const selectedSpace = spaceList.find((s) => s.id === selectedSpaceId);
 		if (selectedSpace && selectedSpace.segs.length > 0) {
@@ -213,61 +213,67 @@ export const drawBoxSelectCells = (ctx: CanvasRenderingContext2D, spaceList: Spa
 };
 
 // 绘制框选单元格的覆盖层（激活状态）
-export const drawActiveBoxSelectCells = (ctx: CanvasRenderingContext2D, state: DragState, scale: number) => {
+export const drawActiveBoxSelectCells = (
+	ctx: CanvasRenderingContext2D,
+	state: DragState,
+	scale: number
+) => {
+	const startCell = clampCell(state.startCell);
+	const endCell = clampCell(state.currentCell);
+	const minX = Math.min(startCell.x, endCell.x);
+	const maxX = Math.max(startCell.x, endCell.x);
+	const minY = Math.min(startCell.y, endCell.y);
+	const maxY = Math.max(startCell.y, endCell.y);
+
+	const left = minX * SIZE;
+	const top = minY * SIZE;
+	const rectWidth = (maxX - minX + 1) * SIZE;
+	const rectHeight = (maxY - minY + 1) * SIZE;
+
+	// 只在画布范围内绘制框选覆盖层
 	if (
-		state.mode === "boxSelectCells" &&
-		state.activated &&
-		state.startCell &&
-		state.currentCell
+		left >= canvasMinX &&
+		left + rectWidth <= canvasMaxX &&
+		top >= canvasMinY &&
+		top + rectHeight <= canvasMaxY
 	) {
-		const startCell = clampCell(state.startCell);
-		const endCell = clampCell(state.currentCell);
-		const minX = Math.min(startCell.x, endCell.x);
-		const maxX = Math.max(startCell.x, endCell.x);
-		const minY = Math.min(startCell.y, endCell.y);
-		const maxY = Math.max(startCell.y, endCell.y);
-
-		const left = minX * SIZE;
-		const top = minY * SIZE;
-		const rectWidth = (maxX - minX + 1) * SIZE;
-		const rectHeight = (maxY - minY + 1) * SIZE;
-
-		// 只在画布范围内绘制框选覆盖层
-		if (
-			left >= canvasMinX &&
-			left + rectWidth <= canvasMaxX &&
-			top >= canvasMinY &&
-			top + rectHeight <= canvasMaxY
-		) {
-			ctx.fillStyle = "rgba(37,99,235,0.10)";
-			ctx.strokeStyle = "#2563eb";
-			ctx.lineWidth = 1 / scale;
-			ctx.fillRect(left, top, rectWidth, rectHeight);
-			ctx.strokeRect(left, top, rectWidth, rectHeight);
-		}
+		ctx.fillStyle = "rgba(37,99,235,0.10)";
+		ctx.strokeStyle = "#2563eb";
+		ctx.lineWidth = 1 / scale;
+		ctx.fillRect(left, top, rectWidth, rectHeight);
+		ctx.strokeRect(left, top, rectWidth, rectHeight);
 	}
 };
 
 export const drawPoint = (ctx: CanvasRenderingContext2D, point: Point, scale: number) => {
 	ctx.fillStyle = "rgba(37,99,235,0.10)";
-	drawCircle(ctx, point.x * SIZE, point.y * SIZE, 4, { fill: "rgba(255,0,0,1) "});
-}
+	drawCircle(ctx, point.x * SIZE, point.y * SIZE, 4, { fill: "rgba(255,0,0,1) " });
+};
 
+function drawCircle(
+	ctx: CanvasRenderingContext2D,
+	x: number,
+	y: number,
+	r: number,
+	options: { fill: string; stroke?: string; lineWidth?: number } = {
+		fill: "rgba(37,99,235,0.10)",
+		stroke: "#2563eb",
+		lineWidth: 1,
+	}
+) {
+	const { fill, stroke, lineWidth = 1 } = options;
 
-function drawCircle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, options: { fill: string, stroke?: string, lineWidth?: number } = { fill: "rgba(37,99,235,0.10)", stroke: "#2563eb", lineWidth: 1 }) {
-  const { fill, stroke, lineWidth = 1 } = options;
+	ctx.beginPath();
+	ctx.arc(x, y, r, 0, Math.PI * 2);
+	ctx.closePath();
+	if (fill) {
+		ctx.fillStyle = fill;
+		ctx.fill();
+	}
 
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.closePath();
-  if (fill) {
-    ctx.fillStyle = fill;
-    ctx.fill();
-  }
-
-  if (stroke) {
-    ctx.lineWidth = lineWidth;
-    ctx.strokeStyle = stroke;
-    ctx.stroke();
-  }
+	if (stroke) {
+		ctx.lineWidth = lineWidth;
+		ctx.strokeStyle = stroke;
+		ctx.stroke();
+	}
 }

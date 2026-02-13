@@ -1,13 +1,15 @@
-import type { PointerEvt, ToolId } from "./types";
+import type { Cell, PointerEvt, ToolId } from "./types";
 import type { Store } from "./store";
 import type { History, Command } from "./history";
 import type { FPState, View } from "./types";
 import { screenToCell, screenToPoint } from "./camera";
 import { HitTest } from "./hitTest";
-import { BoxSelectState, CleanSegmentsState, PanState, DragState } from "./states";
+import { BoxSelectState, CleanSegmentsState, PanState, DragState, MoveSpaceState } from "./states";
 import { SetHoverCmd } from "./commands";
+import { NoneState } from "./states";
 
 export type ToolContext = {
+  updateSpacesById: (id: string, cells: Cell[]) => void;
   store: Store<FPState>;
   history: History<FPState>;
   hitTest: HitTest;
@@ -22,27 +24,30 @@ export interface ToolStrategy {
   onPointerDown(ctx: ToolContext, e: PointerEvt): DragState;
 }
 
-export class NoneState implements DragState {
-  id = "none";
-  onMove(ctx: ToolContext, e: PointerEvt) {
-    // hover 仅在 idle 时更新
-    const view = ctx.store.getState().view;
-    const cell = ctx.screenToCell(e.screenX, e.screenY, view);
-    const next = ctx.hitTest.innermostSpaceIdByCell(cell);
-    if (next !== ctx.store.getState().hoverSpaceId) {
-      ctx.ephemeral(new SetHoverCmd(next));
+export const NoneTool:ToolStrategy = {
+  id:"none",
+  onPointerDown(ctx, e: PointerEvt){
+    const st = ctx.store.getState();
+    if (e.isSpaceKey) {
+      return new PanState(e.screenX, e.screenY, st.view.translateX, st.view.translateY);
     }
-    return this;
+    return new NoneState();
   }
-  onUp() { return this; }
 }
 
+
 export const DefaultTool: ToolStrategy = {
-  id: "default",
+  id: "editDefault",
   onPointerDown(ctx, e) {
     const st = ctx.store.getState();
     if (e.isSpaceKey) {
       return new PanState(e.screenX, e.screenY, st.view.translateX, st.view.translateY);
+    }else{
+      const  startCell = ctx.screenToCell(e.screenX, e.screenY, st.view);
+      const spaceId = ctx.hitTest.innermostSpaceIdByCell(startCell);
+      if (spaceId) {
+        return new MoveSpaceState(startCell, spaceId);
+      }
     }
     // default 这里你可以扩展：点击空间 -> MoveSpaceState / 选中空间
     // 目前返回 none，保持 hover
@@ -83,6 +88,7 @@ export function toolById(id: ToolId): ToolStrategy {
     case "select": return SelectTool;
     case "deselect": return DeselectTool;
     case "cleanSegments": return CleanSegmentsTool;
-    default: return DefaultTool;
+    case "editDefault": return DefaultTool;
+    default: return NoneTool;
   }
 }
