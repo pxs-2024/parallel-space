@@ -1,15 +1,17 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
 	CanvasGridSelector,
+	type CanvasGridSelectorHandle,
 } from "@/components/floor-plan/canvas-grid-selector";
 import type { Cell, Space } from "@/components/floor-plan/types";
 import { cellsToBorderSegments } from "@/components/floor-plan/utils";
 import { Button } from "@/components/ui/button";
 import { createSpaceFromFloorPlan } from "../actions/create-space";
 import { updateSpaceCells } from "../actions/update-space-cells";
+import { updateSpaceInfoFromFloorPlan } from "../actions/update-space-info";
 import { SpaceAssetsDrawer } from "./space-assets-drawer";
 
 export type SpaceForFloorPlan = {
@@ -38,8 +40,13 @@ type FloorPlanSpacesViewProps = {
 
 export function FloorPlanSpacesView({ spaces: serverSpaces }: FloorPlanSpacesViewProps) {
 	const router = useRouter();
+	const canvasRef = useRef<CanvasGridSelectorHandle>(null);
 	const [drawerSpaceId, setDrawerSpaceId] = useState<string | null>(null);
 	const [editMode, setEditMode] = useState(false);
+	const existingSpaceIds = useMemo(
+		() => new Set(serverSpaces.map((s) => s.id)),
+		[serverSpaces]
+	);
 
 	const initialSpaces = useMemo(
 		() => toFloorPlanSpaces(serverSpaces),
@@ -71,31 +78,53 @@ export function FloorPlanSpacesView({ spaces: serverSpaces }: FloorPlanSpacesVie
 		setDrawerSpaceId(spaceId);
 	}, []);
 
-	const persistCallbacks = useMemo<FloorPlanPersistCallbacks>(
-		() => ({ onCreate, onUpdate, onSpaceSelect }),
-		[onCreate, onUpdate, onSpaceSelect]
-	);
+	const onFinishEdit = useCallback(async () => {
+		const updatedIds = canvasRef.current?.getUpdatedSpaceIds() ?? [];
+		const createdIds = canvasRef.current?.getCreatedSpaceIds() ?? [];
+		const editedInfoIds = canvasRef.current?.getEditedInfoSpaceIds() ?? [];
+		const spaces = canvasRef.current?.getSpaces() ?? [];
+		const spaceMap = new Map(spaces.map((s) => [s.id, s]));
+		await Promise.all([
+			...updatedIds
+				.filter((id) => spaceMap.has(id) && existingSpaceIds.has(id))
+				.map((id) => onUpdate(id, spaceMap.get(id)!.cells)),
+			...createdIds
+				.filter((id) => spaceMap.has(id) && !existingSpaceIds.has(id))
+				.map((id) => {
+					const space = spaceMap.get(id)!;
+					return onCreate(space.name, space.cells);
+				}),
+			...editedInfoIds
+				.filter((id) => spaceMap.has(id) && existingSpaceIds.has(id))
+				.map((id) => {
+					const space = spaceMap.get(id)!;
+					return updateSpaceInfoFromFloorPlan(id, space.name, space.description ?? "");
+				}),
+		]);
+		router.refresh();
+		setEditMode(false);
+	}, [existingSpaceIds, onCreate, onUpdate, router]);
 
 	return (
 		<>
 			<div className="relative flex flex-col flex-1 min-h-0">
 				<CanvasGridSelector
+					ref={canvasRef}
 					initialSpaces={initialSpaces}
-					// persistCallbacks={persistCallbacks}
-					noItems
 					editMode={editMode}
+					onSpaceSelect={onSpaceSelect}
 				/>
 				<Button
 					type="button"
 					variant={editMode ? "default" : "outline"}
 					size="sm"
-					onClick={() => setEditMode((v) => !v)}
+					onClick={() => (editMode ? onFinishEdit() : setEditMode(true))}
 					className={`absolute top-3 z-10 shadow-sm ${editMode ? "right-[12.75rem]" : "right-3"}`}
 				>
 					{editMode ? "完成" : "编辑"}
 				</Button>
 			</div>
-			{/* <SpaceAssetsDrawer
+			<SpaceAssetsDrawer
 				spaceId={drawerSpaceId}
 				open={drawerSpaceId != null}
 				onOpenChange={(open) => {
@@ -104,7 +133,7 @@ export function FloorPlanSpacesView({ spaces: serverSpaces }: FloorPlanSpacesVie
 					}
 				}}
 				otherSpaces={otherSpaces}
-			/> */}
+			/>
 		</>
 	);
 }

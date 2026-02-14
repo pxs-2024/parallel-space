@@ -36,9 +36,11 @@ const Sidebar = () => {
 		<nav
 			className={cn(
 				"animate-sidebar-from-left",
-				"h-screen border-r pt-24",
+				"h-screen shrink-0 border-r border-sidebar-border pt-24",
 				isTransition && "duration-200",
-				isOpen ? "md:w-60 w-[78px]" : "w-[78px]"
+				isOpen ? "md:w-60 w-[78px]" : "w-[78px]",
+				// 收起时裁剪溢出，避免内部 absolute 的文案把命中区域撑到右侧，导致未划入就展开
+				!isOpen && "overflow-x-hidden"
 			)}
 			onMouseEnter={() => handleToggle(true)}
 			onMouseLeave={() => handleToggle(false)}

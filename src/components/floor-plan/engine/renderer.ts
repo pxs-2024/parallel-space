@@ -1,5 +1,14 @@
 import type { FPState, Viewport } from "./types";
-import { resetCanvas, drawSelectedCells, drawSpaces, drawHoverSpace, drawBoxSelectCells, drawActiveBoxSelectCells, drawPoint } from "../drawUtils";
+import {
+  getCanvasTheme,
+  resetCanvas,
+  drawSelectedCells,
+  drawSpaces,
+  drawHoverSpace,
+  drawBoxSelectCells,
+  drawActiveBoxSelectCells,
+  drawPoint,
+} from "../drawUtils";
 import { screenToWorldPx } from "./camera";
 
 export function renderFloorPlan(
@@ -8,28 +17,34 @@ export function renderFloorPlan(
   viewport: Viewport,
   state: FPState
 ) {
-  const { view, spaces, selectedCells, hoverSpaceId, selectedSpaceId, overlay } = state;
+  const { view, spaces, selectedCells, hoverSpaceId, selectedSpaceId, overlay, gridMode, editMode, editingSpaceId } = state;
+  const theme = getCanvasTheme(canvas);
+  const showGrid = editMode && gridMode === "full";
 
-  resetCanvas(ctx, canvas, viewport, view, (sx, sy) => screenToWorldPx(sx, sy, view));
+  resetCanvas(ctx, canvas, viewport, view, (sx, sy) => screenToWorldPx(sx, sy, view), theme, {
+    showGrid,
+  });
 
-  drawSelectedCells(ctx, selectedCells);
-  drawSpaces(ctx, spaces, view.scale); 
+  drawSelectedCells(ctx, selectedCells, theme);
+  const spacesToDraw = editingSpaceId ? spaces.filter((s) => s.id !== editingSpaceId) : spaces;
+  drawSpaces(ctx, spacesToDraw, view.scale, theme);
 
-  const hover = spaces.find(s => s.id === hoverSpaceId);
-  if (hover) drawHoverSpace(ctx, hover, view.scale);
+  const hover = spaces.find((s) => s.id === hoverSpaceId);
+  if (hover) drawHoverSpace(ctx, hover, view.scale, theme);
 
-  drawBoxSelectCells(ctx, spaces, selectedSpaceId, view.scale);
+  drawBoxSelectCells(ctx, spaces, selectedSpaceId, view.scale, theme);
 
-  // overlay 画法：如果你想沿用 drawActiveBoxSelectCells，需要你那边接收 overlay
-  // 这里演示直接画 overlay（你可换成你的 util）
   if (overlay?.type === "box") {
-    console.log(overlay,"overlay");
-    drawActiveBoxSelectCells(ctx, { mode: "boxSelectCells", startCell: overlay.a, currentCell: overlay.b } as any, view.scale);
+    drawActiveBoxSelectCells(
+      ctx,
+      { mode: "boxSelectCells", startCell: overlay.a, currentCell: overlay.b } as any,
+      view.scale,
+      theme
+    );
   }
-  // polyline overlay 可自行画或复用 drawPoint/drawXXX
-  if(overlay?.type==='polyline'){
-    overlay.points.forEach(point => {
-      drawPoint(ctx, point, view.scale);
+  if (overlay?.type === "polyline") {
+    overlay.points.forEach((point) => {
+      drawPoint(ctx, point, view.scale, theme);
     });
   }
 }

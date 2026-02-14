@@ -73,6 +73,9 @@ export class MoveSpaceLocalCmd implements Command<FPState> {
 	name = "MoveSpaceLocal";
 	private prevCells!: Cell[];
 	constructor(private spaceId: string, private nextCells: Cell[]) {}
+	getUpdatedSpaceIds() {
+		return [this.spaceId];
+	}
 	execute(store: Store<FPState>) {
 		const st = store.getState();
 		const sp = st.spaces.find((s) => s.id === this.spaceId);
@@ -92,6 +95,41 @@ export class MoveSpaceLocalCmd implements Command<FPState> {
 			spaces: s.spaces.map((x) =>
 				x.id === this.spaceId ? { ...x, cells: prev, segs: cellsToBorderSegments(prev) } : x
 			),
+		}));
+	}
+}
+
+/** 应用「编辑空间」的选区为该空间的新图形并退出编辑状态 */
+export class ApplyEditingSpaceCmd implements Command<FPState> {
+	name = "ApplyEditingSpace";
+	private prevCells!: Cell[];
+	constructor(private spaceId: string, private nextCells: Cell[]) {}
+	getUpdatedSpaceIds() {
+		return [this.spaceId];
+	}
+	execute(store: Store<FPState>) {
+		const st = store.getState();
+		const sp = st.spaces.find((s) => s.id === this.spaceId);
+		this.prevCells = sp?.cells ?? [];
+		const clamped = this.nextCells.map(clampCell);
+		store.mutate((s) => ({
+			...s,
+			spaces: s.spaces.map((x) =>
+				x.id === this.spaceId ? { ...x, cells: clamped, segs: cellsToBorderSegments(clamped) } : x
+			),
+			editingSpaceId: null,
+			selectedCells: [],
+		}));
+	}
+	undo(store: Store<FPState>) {
+		const prev = this.prevCells.map(clampCell);
+		store.mutate((s) => ({
+			...s,
+			spaces: s.spaces.map((x) =>
+				x.id === this.spaceId ? { ...x, cells: prev, segs: cellsToBorderSegments(prev) } : x
+			),
+			editingSpaceId: this.spaceId,
+			selectedCells: [...prev],
 		}));
 	}
 }
@@ -128,6 +166,9 @@ export class MoveSpaceCmd implements Command<FPState> {
 	name = "MoveSpace";
 	private prevSpace!: Space;
 	constructor(private spaceId: string, private dx: number, private dy: number) {}
+	getUpdatedSpaceIds() {
+		return [this.spaceId];
+	}
 	execute(store: Store<FPState>) {
 		// 同时更新cells和segs
 		const space = store.getState().spaces.find((s) => s.id === this.spaceId);
@@ -153,6 +194,61 @@ export class MoveSpaceCmd implements Command<FPState> {
 			spaces: s.spaces.map((x) =>
 				x.id === this.spaceId ? { ...this.prevSpace } : x
 			),
+		}));
+	}
+}
+
+export class GenerateSpaceCmd implements Command<FPState> {
+	name = "GenerateSpace";
+	private prevSpaces!: Space[];
+	constructor(private points: Point[]) {}
+	execute(store: Store<FPState>) {
+		this.prevSpaces = store.getState().spaces;
+		store.mutate((s) => ({ ...s }));
+	}
+	undo(store: Store<FPState>) {
+		store.mutate((s) => ({ ...s, spaces: this.prevSpaces }));
+	}
+}
+
+/** 将当前选区作为新空间提交（名称、描述、单元格） */
+export class AddSpaceCmd implements Command<FPState> {
+	name = "AddSpace";
+	private prevSpaces!: Space[];
+	private prevSelected!: Cell[];
+	private createdSpaceId: string | null = null;
+	constructor(
+		private spaceName: string,
+		private description: string | undefined,
+		private cells: Cell[]
+	) {}
+	getCreatedSpaceIds() {
+		return this.createdSpaceId ? [this.createdSpaceId] : [];
+	}
+	execute(store: Store<FPState>) {
+		this.prevSpaces = store.getState().spaces;
+		this.prevSelected = store.getState().selectedCells;
+		const clamped = this.cells.map(clampCell);
+		const segs = cellsToBorderSegments(clamped);
+		this.createdSpaceId = `${Date.now()}-${Math.random()}`;
+		const newSpace: Space = {
+			id: this.createdSpaceId,
+			name: this.spaceName,
+			description: this.description,
+			cells: clamped,
+			segs,
+		};
+		store.mutate((s) => ({
+			...s,
+			spaces: [...s.spaces, newSpace],
+			selectedCells: [],
+		}));
+	}
+	undo(store: Store<FPState>) {
+		store.mutate((s) => ({
+			...s,
+			spaces: this.prevSpaces,
+			selectedCells: this.prevSelected,
 		}));
 	}
 }

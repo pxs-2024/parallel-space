@@ -3,6 +3,58 @@ import { DragState } from "./canvas-grid-selector22";
 import { MAX_CANVAS_SIZE, SIZE } from "./constants";
 import { clampCell } from "./utils";
 
+export type CanvasTheme = {
+	viewportBg: string;
+	paperBg: string;
+	gridLine: string;
+	spaceStroke: string;
+	spaceLabel: string;
+	selectedFill: string;
+	hoverFill: string;
+	hoverStroke: string;
+	selectedSpaceRing: string;
+	boxFill: string;
+	boxStroke: string;
+	pointFill: string;
+};
+
+const DEFAULT_CANVAS_THEME: CanvasTheme = {
+	viewportBg: "oklch(0.141 0.005 285.823)",
+	paperBg: "oklch(0.21 0.006 285.885)",
+	gridLine: "oklch(1 0 0 / 0.08)",
+	spaceStroke: "oklch(0.606 0.25 292.717)",
+	spaceLabel: "oklch(0.985 0 0 / 0.8)",
+	selectedFill: "oklch(0.606 0.25 292.717 / 0.85)",
+	hoverFill: "oklch(0.606 0.25 292.717 / 0.15)",
+	hoverStroke: "oklch(0.606 0.25 292.717)",
+	selectedSpaceRing: "oklch(0.985 0 0 / 0.3)",
+	boxFill: "oklch(0.606 0.25 292.717 / 0.15)",
+	boxStroke: "oklch(0.606 0.25 292.717)",
+	pointFill: "oklch(0.704 0.191 22.216)",
+};
+
+/** 从元素或文档根读取画布主题（传入 canvas 时可读父级 .canvas-transparent 的透明背景） */
+export function getCanvasTheme(canvas?: HTMLCanvasElement | null): CanvasTheme {
+	if (typeof document === "undefined") return DEFAULT_CANVAS_THEME;
+	const el = canvas?.parentElement ?? document.documentElement;
+	const s = getComputedStyle(el);
+	const get = (v: string) => s.getPropertyValue(v).trim();
+	return {
+		viewportBg: get("--canvas-viewport-bg") || DEFAULT_CANVAS_THEME.viewportBg,
+		paperBg: get("--canvas-paper-bg") || DEFAULT_CANVAS_THEME.paperBg,
+		gridLine: get("--canvas-grid-line") || DEFAULT_CANVAS_THEME.gridLine,
+		spaceStroke: get("--canvas-space-stroke") || DEFAULT_CANVAS_THEME.spaceStroke,
+		spaceLabel: get("--canvas-space-label") || DEFAULT_CANVAS_THEME.spaceLabel,
+		selectedFill: get("--canvas-selected-fill") || DEFAULT_CANVAS_THEME.selectedFill,
+		hoverFill: get("--canvas-hover-fill") || DEFAULT_CANVAS_THEME.hoverFill,
+		hoverStroke: get("--canvas-hover-stroke") || DEFAULT_CANVAS_THEME.hoverStroke,
+		selectedSpaceRing: get("--canvas-selected-space-ring") || DEFAULT_CANVAS_THEME.selectedSpaceRing,
+		boxFill: get("--canvas-box-fill") || DEFAULT_CANVAS_THEME.boxFill,
+		boxStroke: get("--canvas-box-stroke") || DEFAULT_CANVAS_THEME.boxStroke,
+		pointFill: get("--canvas-point-fill") || DEFAULT_CANVAS_THEME.pointFill,
+	};
+}
+
 type ViewPortInfo = {
 	width: number;
 	height: number;
@@ -18,24 +70,30 @@ const canvasMinY = 0;
 const canvasMaxX = MAX_CANVAS_SIZE;
 const canvasMaxY = MAX_CANVAS_SIZE;
 
+export type ResetCanvasOptions = {
+	/** 是否绘制网格（编辑模式且网格为“显示”时为 true） */
+	showGrid?: boolean;
+};
+
 export const resetCanvas = (
 	ctx: CanvasRenderingContext2D,
 	canvas: HTMLCanvasElement,
 	viewPortInfo: ViewPortInfo,
 	viewInfo: ViewInfo,
-	screenToWorldPx: (screenX: number, screenY: number) => { worldX: number; worldY: number }
+	screenToWorldPx: (screenX: number, screenY: number) => { worldX: number; worldY: number },
+	theme?: CanvasTheme,
+	options?: ResetCanvasOptions
 ) => {
+	const t = theme ?? getCanvasTheme();
 	const devicePixelRatio = window.devicePixelRatio || 1;
 	const { width, height } = viewPortInfo;
+	const showGrid = options?.showGrid ?? true;
 
-	// 完全重置变换并清空画布
 	ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-	// 先绘制整个视口的黑色背景
-	drawBackground(ctx, width, height);
+	drawBackground(ctx, width, height, t);
 
-	// 设置视口变换（平移和缩放）
 	const { translateX, translateY, scale } = viewInfo;
 	ctx.setTransform(
 		devicePixelRatio * scale,
@@ -45,11 +103,18 @@ export const resetCanvas = (
 		devicePixelRatio * translateX,
 		devicePixelRatio * translateY
 	);
-	drawGrid(ctx, viewPortInfo, screenToWorldPx, scale);
+	if (showGrid) {
+		drawGrid(ctx, viewPortInfo, screenToWorldPx, scale, t);
+	}
 };
 
-const drawBackground = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-	ctx.fillStyle = "#000000";
+const drawBackground = (
+	ctx: CanvasRenderingContext2D,
+	width: number,
+	height: number,
+	theme: CanvasTheme
+) => {
+	ctx.fillStyle = theme.viewportBg;
 	ctx.fillRect(0, 0, width, height);
 };
 
@@ -57,7 +122,8 @@ const drawGrid = (
 	ctx: CanvasRenderingContext2D,
 	viewPortInfo: ViewPortInfo,
 	screenToWorldPx: (screenX: number, screenY: number) => { worldX: number; worldY: number },
-	scale: number
+	scale: number,
+	theme: CanvasTheme
 ) => {
 	const topLeft = screenToWorldPx(0, 0);
 	const bottomRight = screenToWorldPx(viewPortInfo.width, viewPortInfo.height);
@@ -66,9 +132,9 @@ const drawGrid = (
 	const minWorldY = topLeft.worldY;
 	const maxWorldY = bottomRight.worldY;
 
-	// 绘制画布区域的白色背景（带圆角）
-	const cornerRadius = 16 / scale; // 圆角半径，根据缩放调整
-	ctx.fillStyle = "#ffffff";
+	// 绘制画布区域背景（带圆角，跟随主题）
+	const cornerRadius = 16 / scale;
+	ctx.fillStyle = theme.paperBg;
 	ctx.beginPath();
 	ctx.roundRect(
 		canvasMinX,
@@ -83,13 +149,11 @@ const drawGrid = (
 	const minGridY = Math.floor(Math.max(minWorldY, canvasMinY) / SIZE) - 1;
 	const maxGridY = Math.floor(Math.min(maxWorldY, canvasMaxY) / SIZE) + 1;
 
-	// 绘制网格线（只在画布范围内绘制）
 	ctx.lineWidth = 1 / scale;
-	ctx.strokeStyle = "#ff000012";
+	ctx.strokeStyle = theme.gridLine;
 	ctx.beginPath();
 	for (let gridX = minGridX; gridX <= maxGridX; gridX++) {
 		const x = gridX * SIZE;
-		// 只在画布范围内绘制竖线
 		if (x >= canvasMinX && x <= canvasMaxX) {
 			ctx.moveTo(x, Math.max(minWorldY, canvasMinY));
 			ctx.lineTo(x, Math.min(maxWorldY, canvasMaxY));
@@ -97,7 +161,6 @@ const drawGrid = (
 	}
 	for (let gridY = minGridY; gridY <= maxGridY; gridY++) {
 		const y = gridY * SIZE;
-		// 只在画布范围内绘制横线
 		if (y >= canvasMinY && y <= canvasMaxY) {
 			ctx.moveTo(Math.max(minWorldX, canvasMinX), y);
 			ctx.lineTo(Math.min(maxWorldX, canvasMaxX), y);
@@ -105,11 +168,18 @@ const drawGrid = (
 	}
 	ctx.stroke();
 };
+
 // 绘制空间
-export const drawSpaces = (ctx: CanvasRenderingContext2D, spaceList: Space[], scale: number) => {
+export const drawSpaces = (
+	ctx: CanvasRenderingContext2D,
+	spaceList: Space[],
+	scale: number,
+	theme?: CanvasTheme
+) => {
+	const t = theme ?? getCanvasTheme();
 	if (spaceList.length) {
 		ctx.lineWidth = 2 / scale;
-		ctx.strokeStyle = "#2563eb";
+		ctx.strokeStyle = t.spaceStroke;
 		ctx.lineCap = "round";
 		ctx.lineJoin = "round";
 		for (const space of spaceList) {
@@ -127,12 +197,11 @@ export const drawSpaces = (ctx: CanvasRenderingContext2D, spaceList: Space[], sc
 				ctx.stroke();
 			}
 		}
-		// 房间名称：取格点中心为文字位置，字号随缩放调整
 		const fontSize = Math.max(10, 14 / scale);
 		ctx.font = `${fontSize}px sans-serif`;
 		ctx.textAlign = "center";
 		ctx.textBaseline = "middle";
-		ctx.fillStyle = "rgba(0,0,0,0.7)";
+		ctx.fillStyle = t.spaceLabel;
 		for (const space of spaceList) {
 			if (space.cells.length === 0) continue;
 			let sumX = 0;
@@ -149,9 +218,14 @@ export const drawSpaces = (ctx: CanvasRenderingContext2D, spaceList: Space[], sc
 };
 
 // 绘制选中单元格
-export const drawSelectedCells = (ctx: CanvasRenderingContext2D, selectedCells: Cell[]) => {
+export const drawSelectedCells = (
+	ctx: CanvasRenderingContext2D,
+	selectedCells: Cell[],
+	theme?: CanvasTheme
+) => {
+	const t = theme ?? getCanvasTheme();
 	if (selectedCells.length) {
-		ctx.fillStyle = "rgba(59,130,246,0.85)";
+		ctx.fillStyle = t.selectedFill;
 		for (const cell of selectedCells) {
 			ctx.fillRect(cell.x * SIZE, cell.y * SIZE, SIZE, SIZE);
 		}
@@ -159,15 +233,21 @@ export const drawSelectedCells = (ctx: CanvasRenderingContext2D, selectedCells: 
 };
 
 // 绘制hover空间样式
-export const drawHoverSpace = (ctx: CanvasRenderingContext2D, hoverSpace: Space, scale: number) => {
+export const drawHoverSpace = (
+	ctx: CanvasRenderingContext2D,
+	hoverSpace: Space,
+	scale: number,
+	theme?: CanvasTheme
+) => {
+	const t = theme ?? getCanvasTheme();
 	if (hoverSpace.segs.length > 0) {
-		ctx.fillStyle = "rgba(37,99,235,0.10)";
+		ctx.fillStyle = t.hoverFill;
 		for (const cell of hoverSpace.cells) {
 			ctx.fillRect(cell.x * SIZE, cell.y * SIZE, SIZE, SIZE);
 		}
 	}
 	ctx.lineWidth = 4 / scale;
-	ctx.strokeStyle = "#1d4ed8";
+	ctx.strokeStyle = t.hoverStroke;
 	ctx.lineCap = "round";
 	ctx.lineJoin = "round";
 	for (const path of hoverSpace.segs) {
@@ -188,13 +268,15 @@ export const drawBoxSelectCells = (
 	ctx: CanvasRenderingContext2D,
 	spaceList: Space[],
 	selectedSpaceId: string | null,
-	scale: number
+	scale: number,
+	theme?: CanvasTheme
 ) => {
+	const t = theme ?? getCanvasTheme();
 	if (selectedSpaceId) {
 		const selectedSpace = spaceList.find((s) => s.id === selectedSpaceId);
 		if (selectedSpace && selectedSpace.segs.length > 0) {
 			ctx.lineWidth = 5 / scale;
-			ctx.strokeStyle = "rgba(0,0,0,0.35)";
+			ctx.strokeStyle = t.selectedSpaceRing;
 			ctx.lineCap = "round";
 			ctx.lineJoin = "round";
 			for (const path of selectedSpace.segs) {
@@ -216,8 +298,10 @@ export const drawBoxSelectCells = (
 export const drawActiveBoxSelectCells = (
 	ctx: CanvasRenderingContext2D,
 	state: DragState,
-	scale: number
+	scale: number,
+	theme?: CanvasTheme
 ) => {
+	const t = theme ?? getCanvasTheme();
 	const startCell = clampCell(state.startCell);
 	const endCell = clampCell(state.currentCell);
 	const minX = Math.min(startCell.x, endCell.x);
@@ -230,24 +314,28 @@ export const drawActiveBoxSelectCells = (
 	const rectWidth = (maxX - minX + 1) * SIZE;
 	const rectHeight = (maxY - minY + 1) * SIZE;
 
-	// 只在画布范围内绘制框选覆盖层
 	if (
 		left >= canvasMinX &&
 		left + rectWidth <= canvasMaxX &&
 		top >= canvasMinY &&
 		top + rectHeight <= canvasMaxY
 	) {
-		ctx.fillStyle = "rgba(37,99,235,0.10)";
-		ctx.strokeStyle = "#2563eb";
+		ctx.fillStyle = t.boxFill;
+		ctx.strokeStyle = t.boxStroke;
 		ctx.lineWidth = 1 / scale;
 		ctx.fillRect(left, top, rectWidth, rectHeight);
 		ctx.strokeRect(left, top, rectWidth, rectHeight);
 	}
 };
 
-export const drawPoint = (ctx: CanvasRenderingContext2D, point: Point, scale: number) => {
-	ctx.fillStyle = "rgba(37,99,235,0.10)";
-	drawCircle(ctx, point.x * SIZE, point.y * SIZE, 4, { fill: "rgba(255,0,0,1) " });
+export const drawPoint = (
+	ctx: CanvasRenderingContext2D,
+	point: Point,
+	scale: number,
+	theme?: CanvasTheme
+) => {
+	const t = theme ?? getCanvasTheme();
+	drawCircle(ctx, point.x * SIZE, point.y * SIZE, 4, { fill: t.pointFill });
 };
 
 function drawCircle(
@@ -255,11 +343,7 @@ function drawCircle(
 	x: number,
 	y: number,
 	r: number,
-	options: { fill: string; stroke?: string; lineWidth?: number } = {
-		fill: "rgba(37,99,235,0.10)",
-		stroke: "#2563eb",
-		lineWidth: 1,
-	}
+	options: { fill: string; stroke?: string; lineWidth?: number }
 ) {
 	const { fill, stroke, lineWidth = 1 } = options;
 

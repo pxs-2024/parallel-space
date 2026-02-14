@@ -9,7 +9,6 @@ import { SetHoverCmd } from "./commands";
 import { NoneState } from "./states";
 
 export type ToolContext = {
-  updateSpacesById: (id: string, cells: Cell[]) => void;
   store: Store<FPState>;
   history: History<FPState>;
   hitTest: HitTest;

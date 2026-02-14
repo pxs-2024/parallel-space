@@ -135,5 +135,5 @@ export class CleanSegmentsState implements DragState {
 		ctx.ephemeral(new SetOverlayCmd(null));
 		ctx.commit(new CleanSegmentsCmd(this.points));
 		return new NoneState();
-	}
+	} 
 }

@@ -99,6 +99,19 @@
 	--border: oklch(0.92 0.004 286.32);
 	--input: oklch(0.92 0.004 286.32);
 	--ring: oklch(0.702 0.183 293.541);
+	/* 画布：视口背景、纸面、网格线、空间描边/文字、选区/hover/框选 */
+	--canvas-viewport-bg: var(--background);
+	--canvas-paper-bg: var(--card);
+	--canvas-grid-line: oklch(0.92 0.004 286.32 / 0.5);
+	--canvas-space-stroke: var(--primary);
+	--canvas-space-label: oklch(0.141 0.005 285.823 / 0.75);
+	--canvas-selected-fill: oklch(0.541 0.281 293.009 / 0.85);
+	--canvas-hover-fill: oklch(0.541 0.281 293.009 / 0.12);
+	--canvas-hover-stroke: var(--primary);
+	--canvas-selected-space-ring: oklch(0.141 0.005 285.823 / 0.35);
+	--canvas-box-fill: oklch(0.541 0.281 293.009 / 0.12);
+	--canvas-box-stroke: var(--primary);
+	--canvas-point-fill: var(--destructive);
 	--chart-1: oklch(0.811 0.111 293.571);
 	--chart-2: oklch(0.606 0.25 292.717);
 	--chart-3: oklch(0.541 0.281 293.009);
@@ -133,6 +146,19 @@
 	--border: oklch(1 0 0 / 10%);
 	--input: oklch(1 0 0 / 15%);
 	--ring: oklch(0.38 0.189 293.745);
+	/* 画布（暗色） */
+	--canvas-viewport-bg: var(--background);
+	--canvas-paper-bg: var(--card);
+	--canvas-grid-line: oklch(1 0 0 / 0.08);
+	--canvas-space-stroke: var(--primary);
+	--canvas-space-label: oklch(0.985 0 0 / 0.8);
+	--canvas-selected-fill: oklch(0.606 0.25 292.717 / 0.85);
+	--canvas-hover-fill: oklch(0.606 0.25 292.717 / 0.15);
+	--canvas-hover-stroke: var(--primary);
+	--canvas-selected-space-ring: oklch(0.985 0 0 / 0.3);
+	--canvas-box-fill: oklch(0.606 0.25 292.717 / 0.15);
+	--canvas-box-stroke: var(--primary);
+	--canvas-point-fill: var(--destructive);
 	--chart-1: oklch(0.811 0.111 293.571);
 	--chart-2: oklch(0.606 0.25 292.717);
 	--chart-3: oklch(0.541 0.281 293.009);
@@ -175,6 +201,12 @@
 	body {
 		@apply bg-background text-foreground;
 	}
+}
+
+/* 画布透明模式：去掉视口与纸面背景，canvas 直接透出页面背景 */
+.canvas-transparent {
+	--canvas-viewport-bg: transparent;
+	--canvas-paper-bg: transparent;
 }
 
 /* 空间页拖拽容器网格背景（跟随主题） */
