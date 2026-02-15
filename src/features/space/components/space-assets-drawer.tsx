@@ -3,12 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { ChevronDown, Move, Save } from "lucide-react";
+import { Package, Plus, Trash2, ChevronDown } from "lucide-react";
+import { ArrowRightToLine } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { MainContainer } from "@/components/space/main-container";
-import { DraggableWrap } from "@/components/space/draggable-wrap";
-import { useListenSpace } from "@/components/space/hooks/use-listen-space";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -19,35 +17,19 @@ import {
 	ContextMenuTrigger,
 	ContextMenuSeparator,
 } from "@/components/ui/context-menu";
-import { AssetCard } from "@/components/assets/assets-card";
-import { AssetDetailDrawer } from "@/components/assets/asset-detail-drawer";
-import { CreateAssetDialog } from "@/features/space/components/create-asset-drawer";
-import { ArrowRightToLine, Package, Trash2 } from "lucide-react";
 import { getSpaceAssets } from "@/features/space/actions/get-space-assets";
-import { updateAssetPositions } from "@/features/space/actions/update-asset-position";
 import { moveAssetToSpace } from "@/features/space/actions/move-asset-to-space";
 import { deleteAsset } from "@/features/space/actions/delete-asset";
-import {
-	TOP_DRAWER_HEIGHT_PX,
-	HEIGHT_SHOW_SPACE_DRAWER_VH,
-} from "./space-drawer-from-top";
-import type { DragEndEvent } from "@dnd-kit/core";
-import type { Viewport } from "@/components/space/types";
+import { AssetDetailDrawer } from "@/components/assets/asset-detail-drawer";
+import { CreateAssetDialog } from "@/features/space/components/create-asset-drawer";
+import { Box, Clock, Link2 } from "lucide-react";
 import type { Prisma } from "@/generated/prisma/client";
-
-const HEIGHT_MIN_VH = 25;
-const HEIGHT_MAX_VH = 85;
-const HEIGHT_DEFAULT_VH = 45;
 
 type AssetItem = Prisma.AssetGetPayload<{
 	select: {
 		id: true;
 		name: true;
 		description: true;
-		x: true;
-		y: true;
-		width: true;
-		height: true;
 		cardColor: true;
 		cardOpacity: true;
 		kind: true;
@@ -71,13 +53,21 @@ type SpaceAssetsDrawerProps = {
 	spaceId: string | null;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	/** 打开时聚焦到此物品：居中显示并打开详情 */
+	/** 打开时聚焦到此物品并打开详情 */
 	focusAssetId?: string | null;
-	/** 其他空间列表，用于「移动至」子菜单（不包含当前空间） */
 	otherSpaces?: OtherSpace[];
-	/** 抽屉高度变化时回调（vh），用于在父组件中根据高度显示顶部空间抽屉等 */
-	onHeightChange?: (heightVh: number) => void;
 };
+
+const KIND_ICONS = {
+	CONSUMABLE: Package,
+	TEMPORAL: Clock,
+	VIRTUAL: Link2,
+	STATIC: Box,
+} as const;
+
+const HEIGHT_MIN_VH = 25;
+const HEIGHT_MAX_VH = 85;
+const HEIGHT_DEFAULT_VH = 45;
 
 export function SpaceAssetsDrawer({
 	spaceId,
@@ -85,54 +75,60 @@ export function SpaceAssetsDrawer({
 	onOpenChange,
 	focusAssetId,
 	otherSpaces = [],
-	onHeightChange,
 }: SpaceAssetsDrawerProps) {
 	const [heightVh, setHeightVh] = useState(HEIGHT_DEFAULT_VH);
 	const [isResizing, setIsResizing] = useState(false);
 	const [data, setData] = useState<{ spaceName: string; assets: AssetItem[] } | null>(null);
 	const [assets, setAssets] = useState<AssetItem[]>([]);
 	const [loading, setLoading] = useState(false);
-	const [viewport, setViewport] = useState<Viewport>({ vx: 0, vy: 0, scale: 1 });
-	const [isEditMode, setIsEditMode] = useState(false);
 	const [selectedAsset, setSelectedAsset] = useState<AssetItem | null>(null);
-	const [rootMenu, setRootMenu] = useState<{
-		open: boolean;
-		x: number;
-		y: number;
-		worldX?: number;
-		worldY?: number;
-	}>({ open: false, x: 0, y: 0 });
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
-	/** 新建物品的初始位置（右键菜单处），打开对话框时写入，关闭时清空 */
-	const [createInitialPosition, setCreateInitialPosition] = useState<{ x: number; y: number } | null>(null);
-	const rootMenuRef = useRef<HTMLDivElement>(null);
-	const canvasWrapperRef = useRef<HTMLDivElement>(null);
-	const { spaceDown } = useListenSpace();
-	const t = useTranslations("drawer");
+	const drawerRef = useRef<HTMLDivElement>(null);
 	const startYRef = useRef(0);
 	const startHeightRef = useRef(0);
-	const contentWrapperRef = useRef<HTMLDivElement>(null);
-	const drawerRef = useRef<HTMLDivElement>(null);
 	const lastHeightVhRef = useRef(0);
+	const t = useTranslations("drawer");
 
-	// 根据当前高度是否≥顶部抽屉出现阈值，决定最大高度（避免与顶部抽屉重叠）
-	const effectiveMaxHeightCss =
-		heightVh >= HEIGHT_SHOW_SPACE_DRAWER_VH
-			? `calc(100vh - ${TOP_DRAWER_HEIGHT_PX}px)`
-			: `${HEIGHT_MAX_VH}vh`;
+	const handleResizeStart = useCallback((e: React.MouseEvent) => {
+		e.preventDefault();
+		setIsResizing(true);
+		startYRef.current = e.clientY;
+		startHeightRef.current = heightVh;
+		lastHeightVhRef.current = heightVh;
+	}, [heightVh]);
 
-	// 打开抽屉且 spaceId 存在时拉取该空间物品（含 x,y 用于空间视图）；切换空间或关闭时重置编辑状态
+	useEffect(() => {
+		if (!isResizing) return;
+		const onMove = (e: MouseEvent) => {
+			const dy = startYRef.current - e.clientY;
+			const vhPerPx = 100 / window.innerHeight;
+			const next = Math.max(HEIGHT_MIN_VH, Math.min(HEIGHT_MAX_VH, startHeightRef.current + dy * vhPerPx));
+			lastHeightVhRef.current = next;
+			if (drawerRef.current) {
+				drawerRef.current.style.height = `${next}vh`;
+			}
+		};
+		const onUp = () => {
+			setHeightVh(lastHeightVhRef.current);
+			setIsResizing(false);
+		};
+		document.addEventListener("mousemove", onMove, { passive: true });
+		document.addEventListener("mouseup", onUp);
+		return () => {
+			document.removeEventListener("mousemove", onMove);
+			document.removeEventListener("mouseup", onUp);
+		};
+	}, [isResizing]);
+
 	useEffect(() => {
 		if (!open || !spaceId) {
 			setData(null);
 			setAssets([]);
-			setIsEditMode(false);
 			setSelectedAsset(null);
 			return;
 		}
 		let cancelled = false;
 		setLoading(true);
-		setIsEditMode(false);
 		getSpaceAssets(spaceId)
 			.then((res) => {
 				if (!cancelled && res) {
@@ -151,143 +147,11 @@ export function SpaceAssetsDrawer({
 		};
 	}, [open, spaceId]);
 
-	// 有 focusAssetId 时：居中显示该物品并打开详情
 	useEffect(() => {
 		if (!focusAssetId || !data || assets.length === 0) return;
 		const asset = assets.find((a) => a.id === focusAssetId);
-		if (!asset) return;
-		const el = contentWrapperRef.current;
-		if (!el) return;
-		const run = () => {
-			const rect = el.getBoundingClientRect();
-			const cardW = 160;
-			const cardH = 160;
-			const worldX = (asset.x ?? 0) + cardW / 2;
-			const worldY = (asset.y ?? 0) + cardH / 2;
-			const scale = 1;
-			const targetScreenX = rect.width * 0.5;
-			const targetScreenY = rect.height * 0.5;
-			const vx = targetScreenX - worldX * scale;
-			const vy = targetScreenY - worldY * scale;
-			setViewport({ vx, vy, scale });
-			setSelectedAsset(asset);
-		};
-		const t = setTimeout(run, 100);
-		return () => clearTimeout(t);
+		if (asset) setSelectedAsset(asset);
 	}, [focusAssetId, data, assets]);
-
-	const handleResizeStart = useCallback((e: React.MouseEvent) => {
-		e.preventDefault();
-		setIsResizing(true);
-		startYRef.current = e.clientY;
-		startHeightRef.current = heightVh;
-		lastHeightVhRef.current = heightVh;
-	}, [heightVh]);
-
-	useEffect(() => {
-		if (!isResizing) return;
-		const el = drawerRef.current;
-		const onMove = (e: MouseEvent) => {
-			const dy = startYRef.current - e.clientY;
-			const vhPerPx = 100 / window.innerHeight;
-			let next = startHeightRef.current + dy * vhPerPx;
-			// 一旦拖拽到的高度≥50vh（会露出顶部抽屉），就按「留出顶部抽屉高度」的上限来限制，拖拽时即生效
-			const wouldShowTopDrawer = next >= HEIGHT_SHOW_SPACE_DRAWER_VH;
-			const effectiveMaxVh = wouldShowTopDrawer
-				? 100 - (TOP_DRAWER_HEIGHT_PX / window.innerHeight) * 100
-				: HEIGHT_MAX_VH;
-			next = Math.max(HEIGHT_MIN_VH, Math.min(effectiveMaxVh, next));
-			lastHeightVhRef.current = next;
-			if (el) {
-				const maxCss = wouldShowTopDrawer
-					? `calc(100vh - ${TOP_DRAWER_HEIGHT_PX}px)`
-					: `${HEIGHT_MAX_VH}vh`;
-				el.style.height = `min(${next}vh, ${maxCss})`;
-				el.style.maxHeight = maxCss;
-			}
-		};
-		const onUp = () => {
-			setHeightVh(lastHeightVhRef.current);
-			setIsResizing(false);
-		};
-		document.addEventListener("mousemove", onMove, { passive: true });
-		document.addEventListener("mouseup", onUp);
-		return () => {
-			document.removeEventListener("mousemove", onMove);
-			document.removeEventListener("mouseup", onUp);
-		};
-	}, [isResizing]);
-
-	useEffect(() => {
-		onHeightChange?.(open ? heightVh : 0);
-	}, [open, heightVh, onHeightChange]);
-
-	// 抽屉内右键空白：显示「新建物品」菜单，并记下该点在画布中的世界坐标，新建物品将出现在此处
-	const handleDrawerRootContextMenu = useCallback(
-		(e: React.MouseEvent) => {
-			if ((e.target as HTMLElement).closest("[data-context-menu-handled]")) return;
-			e.preventDefault();
-			e.stopPropagation();
-			let worldX: number | undefined;
-			let worldY: number | undefined;
-			const canvasEl = canvasWrapperRef.current;
-			if (canvasEl) {
-				const rect = canvasEl.getBoundingClientRect();
-				worldX = (e.clientX - rect.left - viewport.vx) / viewport.scale;
-				worldY = (e.clientY - rect.top - viewport.vy) / viewport.scale;
-			} else {
-				// 空状态时用内容区中心附近作为默认位置
-				const wrapper = contentWrapperRef.current;
-				if (wrapper) {
-					const rect = wrapper.getBoundingClientRect();
-					const padding = 12; // p-3
-					worldX = (e.clientX - rect.left - padding - viewport.vx) / viewport.scale;
-					worldY = (e.clientY - rect.top - padding - viewport.vy) / viewport.scale;
-				}
-			}
-			setRootMenu({ open: true, x: e.clientX, y: e.clientY, worldX, worldY });
-		},
-		[viewport.vx, viewport.vy, viewport.scale]
-	);
-
-	// 点击空白或 Escape 关闭右键菜单
-	useEffect(() => {
-		if (!rootMenu.open) return;
-		const handleClickOutside = (e: MouseEvent) => {
-			if (rootMenuRef.current && !rootMenuRef.current.contains(e.target as Node)) {
-				setRootMenu((prev) => (prev.open ? { ...prev, open: false } : prev));
-			}
-		};
-		const handleEscape = (e: KeyboardEvent) => {
-			if (e.key === "Escape") setRootMenu((prev) => (prev.open ? { ...prev, open: false } : prev));
-		};
-		document.addEventListener("mousedown", handleClickOutside);
-		document.addEventListener("keydown", handleEscape);
-		return () => {
-			document.removeEventListener("mousedown", handleClickOutside);
-			document.removeEventListener("keydown", handleEscape);
-		};
-	}, [rootMenu.open]);
-
-	const handleOpenCreateDialog = useCallback(() => {
-		const worldX = rootMenu.worldX;
-		const worldY = rootMenu.worldY;
-		setRootMenu((prev) => (prev.open ? { ...prev, open: false } : prev));
-		setCreateInitialPosition(
-			typeof worldX === "number" && typeof worldY === "number" ? { x: Math.round(worldX), y: Math.round(worldY) } : null
-		);
-		setCreateDialogOpen(true);
-	}, [rootMenu.worldX, rootMenu.worldY]);
-
-	const handleCreateAssetSuccess = useCallback(() => {
-		if (!spaceId) return;
-		getSpaceAssets(spaceId).then((res) => {
-			if (res) {
-				setData(res);
-				setAssets(res.assets);
-			}
-		});
-	}, [spaceId]);
 
 	const handleMoveAssetToSpace = useCallback(
 		async (assetId: string, toSpaceId: string) => {
@@ -319,38 +183,15 @@ export function SpaceAssetsDrawer({
 		[spaceId]
 	);
 
-	// 与详情页一致：仅编辑模式下拖拽生效，只更新本地；保存由「保存布局」按钮统一写库
-	const onDragEnd = useCallback(
-		(e: DragEndEvent) => {
-			if (!isEditMode) return;
-			const { active, delta } = e;
-			const activeId = active?.id as string;
-			const activeAsset = assets.find((a) => a.id === activeId);
-			if (!activeAsset) return;
-
-			const newX = (activeAsset.x ?? 0) + delta.x / viewport.scale;
-			const newY = (activeAsset.y ?? 0) + delta.y / viewport.scale;
-
-			setAssets((prev) =>
-				prev.map((a) => (a.id === activeId ? { ...a, x: newX, y: newY } : a))
-			);
-		},
-		[assets, viewport.scale, isEditMode]
-	);
-
-	const handleSavePositions = useCallback(async () => {
+	const handleCreateAssetSuccess = useCallback(() => {
 		if (!spaceId) return;
-		const updates = assets.map((a) => ({
-			assetId: a.id,
-			x: a.x ?? 0,
-			y: a.y ?? 0,
-			width: a.width ?? undefined,
-			height: a.height ?? undefined,
-		}));
-		await updateAssetPositions(spaceId, updates);
-		toast.success("布局已保存");
-		setIsEditMode(false);
-	}, [assets, spaceId]);
+		getSpaceAssets(spaceId).then((res) => {
+			if (res) {
+				setData(res);
+				setAssets(res.assets);
+			}
+		});
+	}, [spaceId]);
 
 	return (
 		<>
@@ -361,27 +202,21 @@ export function SpaceAssetsDrawer({
 					onClick={() => onOpenChange(false)}
 				/>
 			)}
-			{/* 抽屉有多大，拖拽出来的高度就渲染多大；拖拽时直接改 DOM 不 setState，松手再同步 state，避免卡顿 */}
 			<div
 				ref={drawerRef}
 				className={cn(
-					"fixed inset-x-0 bottom-0 z-50 flex min-h-0 flex-col rounded-t-2xl border-t border-border bg-background/95 backdrop-blur-sm shadow-[0_-8px_30px_rgba(0,0,0,0.12)]",
-					"transition-transform duration-300 ease-out",
+					"fixed inset-x-0 bottom-0 z-50 flex min-h-0 flex-col rounded-t-2xl border-t border-border bg-background/95 backdrop-blur-sm shadow-[0_-8px_30px_rgba(0,0,0,0.12)] transition-transform duration-300 ease-out",
 					open ? "translate-y-0" : "translate-y-full"
 				)}
-				style={{
-					height: `min(${heightVh}vh, ${effectiveMaxHeightCss})`,
-					maxHeight: effectiveMaxHeightCss,
-				}}
+				style={{ height: `${heightVh}vh`, maxHeight: `${HEIGHT_MAX_VH}vh` }}
 			>
-				{/* 顶部：拖拽条 + 修改布局/保存布局 + 标题 + 收起(右)；顶部无留白与上抽屉贴齐 */}
+				{/* 顶部：拖拽条 + 标题、新建、收起 */}
 				<div className="flex shrink-0 flex-col gap-2 border-b border-border px-4 pt-0 pb-2">
 					<button
 						type="button"
 						onMouseDown={handleResizeStart}
 						className={cn(
-							"touch-none self-center rounded-full py-2 transition-colors",
-							"hover:bg-muted/80 active:bg-muted",
+							"touch-none self-center rounded-full py-2 transition-colors hover:bg-muted/80 active:bg-muted",
 							isResizing && "bg-muted"
 						)}
 						aria-label={t("resizeHandle")}
@@ -389,102 +224,79 @@ export function SpaceAssetsDrawer({
 						<span className="block h-1.5 w-12 rounded-full bg-muted-foreground/30" />
 					</button>
 					<div className="flex flex-wrap items-center justify-between gap-2">
-						<div className="flex items-center gap-2 min-w-0 flex-1">
-							<span className="truncate text-lg font-semibold">
-								{data?.spaceName ?? (loading ? t("loading") : t("spaceView"))}
-							</span>
-							{/* 靠着名字右侧，留一点 margin */}
-							{data && assets.length > 0 && (isEditMode ? (
-								<Button
-									variant="default"
-									size="sm"
-									onClick={handleSavePositions}
-									className="gap-1.5 shrink-0 ml-1"
-								>
-									<Save className="size-4" />
-									{t("saveLayout")}
-								</Button>
-							) : (
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() => setIsEditMode(true)}
-									className="gap-1.5 shrink-0 ml-1"
-								>
-									<Move className="size-4" />
-									{t("editLayout")}
-								</Button>
-							))}
+						<span className="truncate text-lg font-semibold">
+							{data?.spaceName ?? (loading ? t("loading") : t("spaceView"))}
+						</span>
+						<div className="flex shrink-0 items-center gap-1">
+							<Button
+								variant="outline"
+								size="sm"
+								className="gap-1.5"
+								onClick={() => setCreateDialogOpen(true)}
+							>
+								<Plus className="size-4" />
+								{t("newAsset")}
+							</Button>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => onOpenChange(false)}
+								className="gap-1"
+								aria-label={t("collapse")}
+							>
+								<ChevronDown className="size-4" />
+								{t("collapse")}
+							</Button>
 						</div>
-						<Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="gap-1 shrink-0">
-							<ChevronDown className="size-4" />
-							{t("collapse")}
-						</Button>
 					</div>
 				</div>
-				{/* 空间视图：可拖拽画布，随抽屉高度填充；留外边距不贴边 */}
-				<div
-					ref={contentWrapperRef}
-					className="min-h-0 flex-1 overflow-hidden p-3"
-					style={{ minHeight: 0 }}
-				>
+
+				{/* 物品列表 */}
+				<div className="min-h-0 flex-1 overflow-y-auto p-2">
 					{loading && !data && (
-						<div className="flex h-full items-center justify-center text-muted-foreground">
+						<div className="flex h-24 items-center justify-center text-muted-foreground text-sm">
 							{t("loading")}
 						</div>
 					)}
 					{!loading && data && assets.length === 0 && (
-						<div
-							className="flex h-full items-center justify-center text-muted-foreground cursor-context-menu"
-							onContextMenu={handleDrawerRootContextMenu}
-						>
+						<div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border py-12 text-center text-muted-foreground text-sm">
 							{t("noAssets")}
+							<Button variant="outline" size="sm" onClick={() => setCreateDialogOpen(true)} className="gap-1.5">
+								<Plus className="size-4" />
+								{t("newAsset")}
+							</Button>
 						</div>
 					)}
 					{!loading && data && assets.length > 0 && (
-						<div
-							ref={canvasWrapperRef}
-							className="drawer-canvas-3d h-full w-full rounded-xl overflow-hidden border border-border/90 bg-background/40"
-						>
-							<MainContainer
-								className="h-full w-full rounded-xl border-0"
-							onDragEnd={onDragEnd}
-							viewport={viewport}
-							onViewportChange={setViewport}
-							onContextMenu={handleDrawerRootContextMenu}
-							spaceDown={spaceDown}
-						>
-							{assets.map((asset) => (
-								<DraggableWrap
-									key={asset.id}
-									position={{
-										id: asset.id,
-										x: asset.x ?? 0,
-										y: asset.y ?? 0,
-									}}
-									viewportScale={viewport.scale}
-									onContextMenu={() => {}}
-									disabled={!isEditMode || spaceDown}
-								>
-									{(dragHandleProps) => (
+						<ul className="space-y-1" role="list">
+							{assets.map((asset) => {
+								const Icon = KIND_ICONS[asset.kind as keyof typeof KIND_ICONS] ?? Box;
+								const secondary =
+									asset.quantity != null
+										? `${asset.quantity}${asset.unit ? ` ${asset.unit}` : ""}`
+										: asset.state ?? "";
+								return (
+									<li key={asset.id}>
 										<ContextMenu>
 											<ContextMenuTrigger asChild>
-												<div data-context-menu-handled>
-													<AssetCard
-														asset={asset}
-														canResize={isEditMode}
-														dragHandleProps={dragHandleProps}
-														onResizeEnd={(w, h) => {
-															setAssets((prev) =>
-																prev.map((a) =>
-																	a.id === asset.id ? { ...a, width: w, height: h } : a
-																)
-															);
-														}}
-														onCardClick={!isEditMode ? (a) => { const full = assets.find((x) => x.id === a.id); if (full) setSelectedAsset(full); } : undefined}
-														isSelected={selectedAsset?.id === asset.id}
-													/>
-												</div>
+												<button
+													type="button"
+													onClick={() => setSelectedAsset(asset)}
+													className={cn(
+														"flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-left transition-colors hover:border-border hover:bg-muted/50",
+														selectedAsset?.id === asset.id && "border-border bg-muted/50 ring-1 ring-primary/30"
+													)}
+												>
+													<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+														<Icon className="size-4 text-muted-foreground" />
+													</div>
+													<div className="min-w-0 flex-1">
+														<div className="truncate font-medium text-foreground">{asset.name}</div>
+														{secondary && (
+															<div className="truncate text-xs text-muted-foreground">{secondary}</div>
+														)}
+													</div>
+												</button>
 											</ContextMenuTrigger>
 											<ContextMenuContent>
 												<ContextMenuSub>
@@ -517,54 +329,20 @@ export function SpaceAssetsDrawer({
 												</ContextMenuItem>
 											</ContextMenuContent>
 										</ContextMenu>
-									)}
-								</DraggableWrap>
-							))}
-							</MainContainer>
-						</div>
+									</li>
+								);
+							})}
+						</ul>
 					)}
-</div>
+				</div>
 			</div>
-			{/* 空白处右键菜单：新建物品 */}
-			{rootMenu.open && (
-				<>
-					<div
-						className="fixed inset-0 z-60"
-						aria-hidden
-						onClick={() => setRootMenu((prev) => (prev.open ? { ...prev, open: false } : prev))}
-					/>
-					<div
-						ref={rootMenuRef}
-						className={cn(
-							"fixed z-61 min-w-40 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
-							"animate-in fade-in-0 zoom-in-95"
-						)}
-						style={{ left: rootMenu.x, top: rootMenu.y }}
-						role="menu"
-					>
-						<button
-							type="button"
-							className="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0"
-							role="menuitem"
-							onClick={handleOpenCreateDialog}
-						>
-							<Package className="text-muted-foreground" />
-							{t("newAsset")}
-						</button>
-					</div>
-				</>
-			)}
 
 			{spaceId && (
 				<CreateAssetDialog
 					spaceId={spaceId}
 					open={createDialogOpen}
-					onOpenChange={(open) => {
-						setCreateDialogOpen(open);
-						if (!open) setCreateInitialPosition(null);
-					}}
+					onOpenChange={setCreateDialogOpen}
 					onSuccess={handleCreateAssetSuccess}
-					initialPosition={createInitialPosition}
 				/>
 			)}
 
@@ -576,9 +354,7 @@ export function SpaceAssetsDrawer({
 					onUpdated={(patch) => {
 						if (!selectedAsset) return;
 						setAssets((prev) =>
-							prev.map((a) =>
-								a.id === selectedAsset.id ? { ...a, ...patch } : a
-							)
+							prev.map((a) => (a.id === selectedAsset.id ? { ...a, ...patch } : a))
 						);
 						setSelectedAsset((prev) => (prev ? { ...prev, ...patch } : null));
 					}}

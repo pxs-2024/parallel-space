@@ -26,10 +26,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { reorderSpaces } from "../actions/reorder-spaces";
 import { SpaceAssetsDrawer } from "./space-assets-drawer";
-import {
-	SpaceDrawerFromTop,
-	HEIGHT_SHOW_SPACE_DRAWER_VH,
-} from "./space-drawer-from-top";
 import { GlobalAssetSearchPanel } from "./global-asset-search-panel";
 import { Button } from "@/components/ui/button";
 import type { AssetWithSpace } from "../queries/get-all-spaces-assets";
@@ -116,11 +112,8 @@ export function SpaceListClient({
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const [drawerSpaceId, setDrawerSpaceId] = useState<string | null>(null);
 	const [focusAssetId, setFocusAssetId] = useState<string | null>(null);
-	const [assetsDrawerHeightVh, setAssetsDrawerHeightVh] = useState(0);
 	const didDragRef = useRef(false);
 
-	const showTopSpaceDrawer =
-		drawerSpaceId != null && assetsDrawerHeightVh >= HEIGHT_SHOW_SPACE_DRAWER_VH;
 	const activeSpace = activeId ? spaces.find((s) => s.id === activeId) : null;
 
 	const handleSpaceClick = useCallback((spaceId: string) => {
@@ -293,15 +286,6 @@ export function SpaceListClient({
 				</DragOverlay>
 			</DndContext>
 
-			<SpaceDrawerFromTop
-				open={showTopSpaceDrawer}
-				spaces={spaces}
-				currentSpaceId={drawerSpaceId}
-				onSelectSpace={(id) => {
-					setDrawerSpaceId(id);
-					setFocusAssetId(null);
-				}}
-			/>
 			<SpaceAssetsDrawer
 				spaceId={drawerSpaceId}
 				open={drawerSpaceId != null}
@@ -311,7 +295,6 @@ export function SpaceListClient({
 						setFocusAssetId(null);
 					}
 				}}
-				onHeightChange={setAssetsDrawerHeightVh}
 				focusAssetId={focusAssetId}
 				otherSpaces={drawerSpaceId ? spaces.filter((s) => s.id !== drawerSpaceId).map((s) => ({ id: s.id, name: s.name })) : []}
 			/>

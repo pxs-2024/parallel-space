@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
 	CanvasGridSelector,
@@ -13,7 +13,7 @@ import { createSpaceFromFloorPlan } from "../actions/create-space";
 import { updateSpaceCells } from "../actions/update-space-cells";
 import { updateSpaceInfoFromFloorPlan } from "../actions/update-space-info";
 import { SpaceAssetsDrawer } from "./space-assets-drawer";
-
+import { loadRecommendations } from "../actions/load-recommendations";
 export type SpaceForFloorPlan = {
 	id: string;
 	name: string;
@@ -39,6 +39,9 @@ type FloorPlanSpacesViewProps = {
 };
 
 export function FloorPlanSpacesView({ spaces: serverSpaces }: FloorPlanSpacesViewProps) {
+	useEffect(() => {
+		loadRecommendations();			
+	}, []);
 	const router = useRouter();
 	const canvasRef = useRef<CanvasGridSelectorHandle>(null);
 	const [drawerSpaceId, setDrawerSpaceId] = useState<string | null>(null);
