@@ -1,16 +1,12 @@
-import type { PendingConfirmAction } from "@/features/todo/queries/get-todo-page-data";
+import type { PendingRestockItem } from "@/features/todo/queries/get-todo-page-data";
 
-/** 待办项：仅由定时任务生成的 OPEN 待确认项 */
-export type DecisionItem = { kind: "pending"; data: PendingConfirmAction };
+/** 待办项：仅 OPEN 的 RESTOCK（消耗型/时间型） */
+export type DecisionItem = { kind: "pending"; data: PendingRestockItem };
 
 export function getDecisionItemKey(item: DecisionItem): string {
 	return item.data.id;
 }
 
 export function getTypeLabel(item: DecisionItem): string {
-	return item.data.type === "RESTOCK"
-		? "补充"
-		: item.data.type === "DISCARD"
-			? "待丢弃"
-			: "到期";
+	return item.data.assetKind === "CONSUMABLE" ? "补充" : "延期";
 }

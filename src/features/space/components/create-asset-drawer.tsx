@@ -25,12 +25,11 @@ import { createAsset } from "@/features/space/actions/create-asset";
 import { EMPTY_ACTION_STATE } from "@/components/form/utils/to-action-state";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-// 定义 AssetKind 枚举，避免在客户端导入 Prisma 类型
+// 与 schema 一致：仅 STATIC / CONSUMABLE / TEMPORAL
 enum AssetKind {
 	STATIC = "STATIC",
 	CONSUMABLE = "CONSUMABLE",
 	TEMPORAL = "TEMPORAL",
-	VIRTUAL = "VIRTUAL",
 }
 
 type CreateAssetDialogProps = {
@@ -38,14 +37,12 @@ type CreateAssetDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	onSuccess?: () => void;
-	initialPosition?: { x: number; y: number } | null;
 };
 
 const ASSET_KIND_OPTIONS = [
 	{ value: AssetKind.STATIC, label: "静态物品" },
 	{ value: AssetKind.CONSUMABLE, label: "消耗型物品" },
 	{ value: AssetKind.TEMPORAL, label: "时间型物品" },
-	{ value: AssetKind.VIRTUAL, label: "虚拟物品" },
 ] as const;
 
 const CreateAssetDialog = ({
@@ -53,7 +50,6 @@ const CreateAssetDialog = ({
 	open,
 	onOpenChange,
 	onSuccess,
-	initialPosition,
 }: CreateAssetDialogProps) => {
 	const [step, setStep] = useState(1);
 	const [kind, setKind] = useState<AssetKind>(AssetKind.STATIC);
@@ -228,14 +224,6 @@ const CreateAssetDialog = ({
 									</Select>
 									<FieldError actionState={actionState} name="kind" />
 								</div>
-								
-								{/* 位置信息 */}
-								{initialPosition && (
-									<>
-										<input type="hidden" name="x" value={initialPosition.x} />
-										<input type="hidden" name="y" value={initialPosition.y} />
-									</>
-								)}
 							</div>
 						) : (
 							// 步骤2时，隐藏步骤1的字段但保留在表单中
@@ -243,13 +231,6 @@ const CreateAssetDialog = ({
 								<input type="hidden" name="name" value={step1Data.name} />
 								<input type="hidden" name="description" value={step1Data.description} />
 								<input type="hidden" name="kind" value={kind} />
-								{/* 位置信息 */}
-								{initialPosition && (
-									<>
-										<input type="hidden" name="x" value={initialPosition.x} />
-										<input type="hidden" name="y" value={initialPosition.y} />
-									</>
-								)}
 							</>
 						)}
 
@@ -338,34 +319,6 @@ const CreateAssetDialog = ({
 									</>
 								)}
 
-								{kind === AssetKind.VIRTUAL && (
-									<>
-										<h3 className="text-sm font-medium mb-4">虚拟物品设置</h3>
-										<div className="space-y-2">
-											<Label htmlFor="refUrl">参考链接</Label>
-											<Input
-												id="refUrl"
-												name="refUrl"
-												type="url"
-												placeholder="https://example.com"
-												defaultValue={actionState.payload?.get("refUrl") as string}
-											/>
-											<FieldError actionState={actionState} name="refUrl" />
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor="expiresAt">过期时间</Label>
-											<Input
-												id="expiresAt"
-												name="expiresAt"
-												type="datetime-local"
-												defaultValue={formatDateForInput(
-													actionState.payload?.get("expiresAt") as string | undefined
-												)}
-											/>
-											<FieldError actionState={actionState} name="expiresAt" />
-										</div>
-									</>
-								)}
 							</div>
 						)}
 					</div>

@@ -22,15 +22,13 @@ const KIND_OPTIONS = [
 	{ value: "STATIC", labelKey: "kindStatic" as const },
 	{ value: "CONSUMABLE", labelKey: "kindConsumable" as const },
 	{ value: "TEMPORAL", labelKey: "kindTemporal" as const },
-	{ value: "VIRTUAL", labelKey: "kindVirtual" as const },
 ] as const;
 
 const STATE_OPTIONS = [
 	{ value: "", labelKey: "allStates" as const },
 	{ value: "ACTIVE", labelKey: "stateActive" as const },
-	{ value: "PENDING_RESTOCK", labelKey: "statePendingRestock" as const },
-	{ value: "PENDING_DISCARD", labelKey: "statePendingDiscard" as const },
-	{ value: "ARCHIVED", labelKey: "stateArchived" as const },
+	{ value: "PENDING", labelKey: "statePending" as const },
+	{ value: "PAUSED", labelKey: "statePaused" as const },
 	{ value: "DISCARDED", labelKey: "stateDiscarded" as const },
 ] as const;
 

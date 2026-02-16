@@ -26,7 +26,7 @@ function createPrisma() {
   const adapter = new PrismaPg(pool);
   return new PrismaClient({
     adapter,
-    log: ["query", "error", "warn"],
+    // 使用 adapter 时不要传 log：内部会注册 JS 回调，adapter 结果路径会做 serde 序列化，无法表示函数，会报 P2010
   });
 }
 

@@ -13,9 +13,8 @@ import { listSearchParsers, listSearchOptions } from "../search-params";
 const STATE_OPTIONS = [
 	{ value: "", label: "全部状态" },
 	{ value: "ACTIVE", label: "在用" },
-	{ value: "PENDING_RESTOCK", label: "待补充" },
-	{ value: "PENDING_DISCARD", label: "待废弃" },
-	{ value: "ARCHIVED", label: "已归档" },
+	{ value: "PENDING", label: "待处理" },
+	{ value: "PAUSED", label: "暂停" },
 	{ value: "DISCARDED", label: "已废弃" },
 ] as const;
 

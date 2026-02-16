@@ -70,6 +70,8 @@
   },
   "asset": {
     "stateActive": "在用",
+    "statePending": "待处理",
+    "statePaused": "暂停",
     "statePendingRestock": "待补充",
     "statePendingDiscard": "待废弃",
     "stateArchived": "已归档",

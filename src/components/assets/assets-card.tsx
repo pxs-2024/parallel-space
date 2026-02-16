@@ -23,13 +23,7 @@ type AssetCardProps = {
 			dueAt: true;
 			lastDoneAt: true;
 			nextDueAt: true;
-			refUrl: true;
-			expiresAt: true;
 			createdAt: true;
-			width: true;
-			height: true;
-			cardColor: true;
-			cardOpacity: true;
 		};
 	}>;
 	/** 点击卡片时回调 */
@@ -39,8 +33,8 @@ type AssetCardProps = {
 };
 
 function AssetCard({ asset, onCardClick, isSelected = false }: AssetCardProps) {
-	const displayW = asset.width ?? DEFAULT_SIZE;
-	const displayH = asset.height ?? DEFAULT_SIZE;
+	const displayW = DEFAULT_SIZE;
+	const displayH = DEFAULT_SIZE;
 
 	const handleCardClick = useCallback(
 		(e: React.MouseEvent) => {
@@ -74,8 +68,6 @@ function AssetCard({ asset, onCardClick, isSelected = false }: AssetCardProps) {
 						lastDoneAt: asset.lastDoneAt,
 						nextDueAt: asset.nextDueAt,
 						createdAt: asset.createdAt,
-						cardColor: asset.cardColor ?? undefined,
-						cardOpacity: asset.cardOpacity ?? undefined,
 						quantity: asset.quantity ?? undefined,
 						reorderPoint: asset.reorderPoint ?? undefined,
 						unit: asset.unit ?? undefined,

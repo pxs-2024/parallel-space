@@ -70,6 +70,8 @@
   },
   "asset": {
     "stateActive": "Active",
+    "statePending": "Pending",
+    "statePaused": "Paused",
     "statePendingRestock": "Pending restock",
     "statePendingDiscard": "Pending discard",
     "stateArchived": "Archived",

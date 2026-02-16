@@ -6,7 +6,7 @@ import { getLocale } from "next-intl/server";
 import { getAuth } from "@/features/auth/queries/get-auth";
 
 /**
- * 按新顺序更新空间的 order 字段。spaceIds 的顺序即为展示顺序。
+ * 校验 spaceIds 均属于当前用户（Schema 无 order 字段，仅做权限校验并 revalidate）。
  */
 export async function reorderSpaces(spaceIds: string[]): Promise<{ ok: boolean; error?: string }> {
 	try {
@@ -24,18 +24,8 @@ export async function reorderSpaces(spaceIds: string[]): Promise<{ ok: boolean; 
 			return { ok: false, error: "部分空间不存在或无权修改" };
 		}
 
-		await prisma.$transaction(
-			spaceIds.map((id, index) =>
-				prisma.space.update({
-					where: { id },
-					data: { order: index },
-				})
-			)
-		);
-
 		const locale = await getLocale();
 		revalidatePath(`/${locale}/spaces`);
-
 		return { ok: true };
 	} catch (e) {
 		console.error("reorderSpaces", e);

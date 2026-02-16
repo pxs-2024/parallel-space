@@ -12,15 +12,6 @@ const createAssetSchema = z.object({
 	name: z.string().min(1, "名称不能为空").max(191, "名称不能超过191个字符"),
 	description: z.string().max(1000, "描述不能超过1000个字符").optional().default(""),
 	kind: z.nativeEnum(AssetKind).default(AssetKind.STATIC),
-	// 位置
-	x: z
-		.union([z.coerce.number(), z.literal("")])
-		.optional()
-		.transform((val) => (val === "" ? undefined : val)),
-	y: z
-		.union([z.coerce.number(), z.literal("")])
-		.optional()
-		.transform((val) => (val === "" ? undefined : val)),
 	// 消耗型
 	quantity: z
 		.union([z.coerce.number().int().positive(), z.literal("")])
@@ -45,27 +36,6 @@ const createAssetSchema = z.object({
 		.transform((val) => (val === "" ? undefined : val)),
 	// 时间型
 	dueAt: z
-		.string()
-		.optional()
-		.transform((val) => (val && val.trim() ? new Date(val) : undefined)),
-	// 虚拟型
-	refUrl: z
-		.string()
-		.optional()
-		.transform((val) => (val && val.trim() ? val.trim() : undefined))
-		.refine(
-			(val) => {
-				if (!val) return true;
-				try {
-					new URL(val);
-					return true;
-				} catch {
-					return false;
-				}
-			},
-			{ message: "请输入有效的URL" }
-		),
-	expiresAt: z
 		.string()
 		.optional()
 		.transform((val) => (val && val.trim() ? new Date(val) : undefined)),
@@ -97,10 +67,6 @@ export async function createAsset(
 			description: data.description || null,
 			kind: data.kind,
 			spaceId,
-			x: data.x ?? null,
-			y: data.y ?? null,
-			width: 160,
-			height: 160,
 		};
 
 		// 消耗型字段
@@ -118,12 +84,6 @@ export async function createAsset(
 				assetData.dueAt = data.dueAt;
 				assetData.nextDueAt = data.dueAt;
 			}
-		}
-
-		// 虚拟型字段
-		if (data.kind === AssetKind.VIRTUAL) {
-			if (data.refUrl) assetData.refUrl = data.refUrl;
-			if (data.expiresAt) assetData.expiresAt = data.expiresAt;
 		}
 
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any

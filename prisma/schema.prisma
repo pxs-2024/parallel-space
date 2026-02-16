@@ -41,7 +41,6 @@ model Space {
   id          String   @id @default(cuid())
   name        String
   description String
-  order       Int      @default(0) // 列表展示顺序，越小越靠前
   // 平面图上的区域：网格格点坐标数组 [{x,y}, ...]，必填
   cells       Json     @default("[]")
   createdAt   DateTime @default(now())
@@ -54,23 +53,20 @@ model Space {
   actions Action[]
 
   @@index([userId])
-  @@index([userId, order])
   @@index([createdAt])
 }
 
 enum AssetKind {
-  STATIC
-  CONSUMABLE
-  TEMPORAL
-  VIRTUAL
+  STATIC // 静态物品
+  CONSUMABLE // 消耗品
+  TEMPORAL // 时间性物品
 }
 
 enum AssetState {
-  ACTIVE
-  PENDING_RESTOCK // 待补充：数量到达临界值
-  PENDING_DISCARD // 待废弃：数量为 0
-  ARCHIVED
-  DISCARDED
+  ACTIVE // 活跃  正常使用
+  PENDING // 待处理 （待补充）
+  PAUSED // 暂停 （暂停 不触发提醒）
+  DISCARDED // 丢弃 （放入垃圾桶）
 }
 
 model Asset {
@@ -85,12 +81,6 @@ model Asset {
   state       AssetState @default(ACTIVE)
   isDeleted   Boolean    @default(false)
 
-  x Float?
-  y Float?
-  width  Float? // 卡片宽（px），默认 160
-  height Float? // 卡片高（px），默认 160
-  cardColor   String? // 信息卡背景色，如 #8b5ca8
-  cardOpacity Float? // 信息卡背景透明度 0–1
 
   // 消耗型
   quantity             Int? // 物品数量
@@ -104,19 +94,10 @@ model Asset {
   lastDoneAt DateTime? // 上次改动时间
   nextDueAt  DateTime? // 下次到期时间
 
-  // 虚拟型
-  refUrl    String?
-  expiresAt DateTime?
-
-  // 忽略/提示：snoozeUntil 前不产生新的 RESTOCK/REMIND；有未处理提示时不重复产生
-  snoozeUntil        DateTime?
-  openPromptActionId String?   @unique // 当前未处理的提示 action id，非空时不产生新提示
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   actions          Action[]
-  openPromptAction Action?  @relation("AssetOpenPromptAction", fields: [openPromptActionId], references: [id], onDelete: SetNull)
 
   @@index([spaceId])
   @@index([spaceId, isDeleted])
@@ -125,17 +106,13 @@ model Asset {
 }
 
 enum ActionType {
-  AUTO_CONSUME
-  RESTOCK
-  REMIND
-  DISCARD // 丢弃：数量为 0 时触发
+  RESTOCK // 补充物品
+  NEW_ASSET // 新增物品 （用于 AI 建议）
 }
 
 enum ActionStatus {
-  OPEN
-  DONE
-  SKIPPED
-  DISCARDED
+  OPEN // 未处理
+  DONE // 已处理
 }
 
 model Action {
@@ -157,8 +134,6 @@ model Action {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  assetAsOpenPrompt Asset? @relation("AssetOpenPromptAction")
 
   @@unique([key])
   @@index([spaceId, status, dueAt])

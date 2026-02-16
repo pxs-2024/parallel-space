@@ -7,6 +7,7 @@ import { Header } from "../_navigation/header";
 import { LayoutBreadcrumb } from "../_navigation/layout-breadcrumb";
 import { PixelCanvasBackground } from "@/components/ui/pixel-canvas-background";
 import { Toaster } from "@/components/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { LocalMessageProvider } from "@/components/i18n/local-message-provider";
 import { Locale } from "next-intl";
 import { getMessages, setRequestLocale } from "next-intl/server";
@@ -57,6 +58,7 @@ export default async function RootLayout({
 			<body className={`${geistSans.variable} ${geistMono.variable} ${geelyDesign.variable} antialiased flex h-screen flex-col overflow-hidden bg-transparent`}>
 				<NuqsAdapter>
 					<ThemeProvider>
+						<TooltipProvider delayDuration={300}>
 						<LocalMessageProvider locale={locale} messages={messages}>
 						<PixelCanvasBackground
 							colors={["var(--primary)", "var(--chart-1)", "var(--chart-2)"]}
@@ -83,6 +85,7 @@ export default async function RootLayout({
 						</div>
 						<Toaster expand />
 						</LocalMessageProvider>
+						</TooltipProvider>
 					</ThemeProvider>
 				</NuqsAdapter>
 			</body>

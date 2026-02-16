@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { Package, Plus, Trash2, ChevronDown } from "lucide-react";
+import { Package, Plus, Trash2, ChevronRight, Box, Clock, MoreVertical } from "lucide-react";
 import { ArrowRightToLine } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -22,16 +22,29 @@ import { moveAssetToSpace } from "@/features/space/actions/move-asset-to-space";
 import { deleteAsset } from "@/features/space/actions/delete-asset";
 import { AssetDetailDrawer } from "@/components/assets/asset-detail-drawer";
 import { CreateAssetDialog } from "@/features/space/components/create-asset-drawer";
-import { Box, Clock, Link2 } from "lucide-react";
 import type { Prisma } from "@/generated/prisma/client";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+function daysUntilDue(nextDueAt: Date | null, dueAt: Date | null): number | null {
+	const due = nextDueAt ?? dueAt;
+	if (!due) return null;
+	const dueMs = new Date(due).getTime();
+	const diff = dueMs - Date.now();
+	if (diff <= 0) return null;
+	return Math.ceil(diff / MS_PER_DAY);
+}
+
+function consumableProgress(quantity: number | null, reorderPoint: number | null): number {
+	if (reorderPoint == null || reorderPoint <= 0) return 0;
+	const q = quantity ?? 0;
+	return Math.min(1, q / reorderPoint);
+}
 
 type AssetItem = Prisma.AssetGetPayload<{
 	select: {
 		id: true;
 		name: true;
 		description: true;
-		cardColor: true;
-		cardOpacity: true;
 		kind: true;
 		state: true;
 		quantity: true;
@@ -41,8 +54,6 @@ type AssetItem = Prisma.AssetGetPayload<{
 		dueAt: true;
 		lastDoneAt: true;
 		nextDueAt: true;
-		refUrl: true;
-		expiresAt: true;
 		createdAt: true;
 	};
 }>;
@@ -61,13 +72,10 @@ type SpaceAssetsDrawerProps = {
 const KIND_ICONS = {
 	CONSUMABLE: Package,
 	TEMPORAL: Clock,
-	VIRTUAL: Link2,
 	STATIC: Box,
 } as const;
 
-const HEIGHT_MIN_VH = 25;
-const HEIGHT_MAX_VH = 85;
-const HEIGHT_DEFAULT_VH = 45;
+const DRAWER_WIDTH = "min(28rem, 90vw)";
 
 export function SpaceAssetsDrawer({
 	spaceId,
@@ -76,49 +84,13 @@ export function SpaceAssetsDrawer({
 	focusAssetId,
 	otherSpaces = [],
 }: SpaceAssetsDrawerProps) {
-	const [heightVh, setHeightVh] = useState(HEIGHT_DEFAULT_VH);
-	const [isResizing, setIsResizing] = useState(false);
 	const [data, setData] = useState<{ spaceName: string; assets: AssetItem[] } | null>(null);
 	const [assets, setAssets] = useState<AssetItem[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [selectedAsset, setSelectedAsset] = useState<AssetItem | null>(null);
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
 	const drawerRef = useRef<HTMLDivElement>(null);
-	const startYRef = useRef(0);
-	const startHeightRef = useRef(0);
-	const lastHeightVhRef = useRef(0);
 	const t = useTranslations("drawer");
-
-	const handleResizeStart = useCallback((e: React.MouseEvent) => {
-		e.preventDefault();
-		setIsResizing(true);
-		startYRef.current = e.clientY;
-		startHeightRef.current = heightVh;
-		lastHeightVhRef.current = heightVh;
-	}, [heightVh]);
-
-	useEffect(() => {
-		if (!isResizing) return;
-		const onMove = (e: MouseEvent) => {
-			const dy = startYRef.current - e.clientY;
-			const vhPerPx = 100 / window.innerHeight;
-			const next = Math.max(HEIGHT_MIN_VH, Math.min(HEIGHT_MAX_VH, startHeightRef.current + dy * vhPerPx));
-			lastHeightVhRef.current = next;
-			if (drawerRef.current) {
-				drawerRef.current.style.height = `${next}vh`;
-			}
-		};
-		const onUp = () => {
-			setHeightVh(lastHeightVhRef.current);
-			setIsResizing(false);
-		};
-		document.addEventListener("mousemove", onMove, { passive: true });
-		document.addEventListener("mouseup", onUp);
-		return () => {
-			document.removeEventListener("mousemove", onMove);
-			document.removeEventListener("mouseup", onUp);
-		};
-	}, [isResizing]);
 
 	useEffect(() => {
 		if (!open || !spaceId) {
@@ -205,49 +177,36 @@ export function SpaceAssetsDrawer({
 			<div
 				ref={drawerRef}
 				className={cn(
-					"fixed inset-x-0 bottom-0 z-50 flex min-h-0 flex-col rounded-t-2xl border-t border-border bg-background/95 backdrop-blur-sm shadow-[0_-8px_30px_rgba(0,0,0,0.12)] transition-transform duration-300 ease-out",
-					open ? "translate-y-0" : "translate-y-full"
+					"fixed right-0 top-16 bottom-0 z-50 flex min-h-0 flex-col rounded-l-2xl border-l border-t border-b border-border bg-background/95 backdrop-blur-sm shadow-[-8px_0_30px_rgba(0,0,0,0.12)] transition-transform duration-300 ease-out",
+					open ? "translate-x-0" : "translate-x-full"
 				)}
-				style={{ height: `${heightVh}vh`, maxHeight: `${HEIGHT_MAX_VH}vh` }}
+				style={{ width: DRAWER_WIDTH }}
 			>
-				{/* 顶部：拖拽条 + 标题、新建、收起 */}
-				<div className="flex shrink-0 flex-col gap-2 border-b border-border px-4 pt-0 pb-2">
-					<button
-						type="button"
-						onMouseDown={handleResizeStart}
-						className={cn(
-							"touch-none self-center rounded-full py-2 transition-colors hover:bg-muted/80 active:bg-muted",
-							isResizing && "bg-muted"
-						)}
-						aria-label={t("resizeHandle")}
-					>
-						<span className="block h-1.5 w-12 rounded-full bg-muted-foreground/30" />
-					</button>
-					<div className="flex flex-wrap items-center justify-between gap-2">
-						<span className="truncate text-lg font-semibold">
-							{data?.spaceName ?? (loading ? t("loading") : t("spaceView"))}
-						</span>
-						<div className="flex shrink-0 items-center gap-1">
-							<Button
-								variant="outline"
-								size="sm"
-								className="gap-1.5"
-								onClick={() => setCreateDialogOpen(true)}
-							>
-								<Plus className="size-4" />
-								{t("newAsset")}
-							</Button>
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={() => onOpenChange(false)}
-								className="gap-1"
-								aria-label={t("collapse")}
-							>
-								<ChevronDown className="size-4" />
-								{t("collapse")}
-							</Button>
-						</div>
+				{/* 标题区：空间名 + 新建、收起 */}
+				<div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+					<span className="truncate text-lg font-semibold">
+						{data?.spaceName ?? (loading ? t("loading") : t("spaceView"))}
+					</span>
+					<div className="flex shrink-0 items-center gap-1">
+						<Button
+							variant="outline"
+							size="sm"
+							className="gap-1.5"
+							onClick={() => setCreateDialogOpen(true)}
+						>
+							<Plus className="size-4" />
+							{t("newAsset")}
+						</Button>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={() => onOpenChange(false)}
+							className="gap-1"
+							aria-label={t("collapse")}
+						>
+							<ChevronRight className="size-4" />
+							{t("collapse")}
+						</Button>
 					</div>
 				</div>
 
@@ -268,35 +227,83 @@ export function SpaceAssetsDrawer({
 						</div>
 					)}
 					{!loading && data && assets.length > 0 && (
-						<ul className="space-y-1" role="list">
+						<ul className="space-y-2" role="list">
 							{assets.map((asset) => {
-								const Icon = KIND_ICONS[asset.kind as keyof typeof KIND_ICONS] ?? Box;
-								const secondary =
-									asset.quantity != null
-										? `${asset.quantity}${asset.unit ? ` ${asset.unit}` : ""}`
-										: asset.state ?? "";
-								return (
-									<li key={asset.id}>
-										<ContextMenu>
-											<ContextMenuTrigger asChild>
+								const days = asset.kind === "TEMPORAL" ? daysUntilDue(asset.nextDueAt, asset.dueAt) : null;
+								const progress = asset.kind === "CONSUMABLE" ? consumableProgress(asset.quantity, asset.reorderPoint) : 0;
+								const isSelected = selectedAsset?.id === asset.id;
+								const cardButton = (
 												<button
 													type="button"
 													onClick={() => setSelectedAsset(asset)}
 													className={cn(
-														"flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-left transition-colors hover:border-border hover:bg-muted/50",
-														selectedAsset?.id === asset.id && "border-border bg-muted/50 ring-1 ring-primary/30"
+														"flex w-full flex-col rounded-xl border bg-card p-3 text-left shadow-sm transition-colors hover:border-border hover:bg-muted/30",
+														isSelected && "border-primary/50 ring-1 ring-primary/30 bg-muted/50"
 													)}
 												>
-													<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-														<Icon className="size-4 text-muted-foreground" />
+													{/* 顶部：图标区 + 更多 */}
+													<div className="flex items-start gap-2">
+														<div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
+															{asset.kind === "TEMPORAL" ? (
+																<span className="flex flex-col items-center justify-center px-1 py-0.5 text-center">
+																	<Clock className="size-4 text-muted-foreground" />
+																	<span className="text-[10px] font-medium leading-tight text-foreground">
+																		{days != null ? `${days}天` : "已到期"}
+																	</span>
+																</span>
+															) : asset.kind === "CONSUMABLE" ? (
+																<div className="relative flex size-full items-center justify-center">
+																	<svg className="size-8 -rotate-90" viewBox="0 0 32 32">
+																		<circle cx="16" cy="16" r="14" className="fill-none stroke-muted-foreground/20 stroke-2" />
+																		<circle
+																			cx="16"
+																			cy="16"
+																			r="14"
+																			className="fill-none stroke-primary stroke-2 transition-all"
+																			strokeDasharray={88}
+																			strokeDashoffset={88 - 88 * progress}
+																		/>
+																	</svg>
+																	<span className="absolute text-[10px] font-semibold text-foreground">
+																		{Math.round(progress * 100)}%
+																	</span>
+																</div>
+															) : (
+																<Box className="size-5 text-muted-foreground" />
+															)}
+														</div>
+														<div className="min-w-0 flex-1" />
+														<span className="shrink-0 text-muted-foreground" aria-hidden>
+															<MoreVertical className="size-4" />
+														</span>
 													</div>
-													<div className="min-w-0 flex-1">
-														<div className="truncate font-medium text-foreground">{asset.name}</div>
-														{secondary && (
-															<div className="truncate text-xs text-muted-foreground">{secondary}</div>
+													{/* 主标题 */}
+													<div className="mt-1.5 truncate font-semibold text-foreground">
+														{asset.name}
+													</div>
+													{/* 次要信息：数量/补货线；时间型显示到期日 */}
+													<div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+														{asset.quantity != null && (
+															<div className="truncate">
+																数量 {asset.quantity}{asset.unit ? ` ${asset.unit}` : ""}
+																{asset.reorderPoint != null && asset.kind === "CONSUMABLE" && (
+																	<span> · 补货线 {asset.reorderPoint}</span>
+																)}
+															</div>
+														)}
+														{(asset.nextDueAt || asset.dueAt) && asset.kind === "TEMPORAL" && (
+															<div className="truncate">
+																到期 {new Date(asset.nextDueAt ?? asset.dueAt!).toLocaleDateString("zh-CN")}
+															</div>
 														)}
 													</div>
 												</button>
+								);
+								return (
+									<li key={asset.id}>
+										<ContextMenu>
+											<ContextMenuTrigger asChild>
+												{cardButton}
 											</ContextMenuTrigger>
 											<ContextMenuContent>
 												<ContextMenuSub>

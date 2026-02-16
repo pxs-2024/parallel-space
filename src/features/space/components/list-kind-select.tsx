@@ -15,7 +15,6 @@ const KIND_OPTIONS = [
 	{ value: "STATIC", label: "静态" },
 	{ value: "CONSUMABLE", label: "消耗型" },
 	{ value: "TEMPORAL", label: "时间型" },
-	{ value: "VIRTUAL", label: "虚拟型" },
 ] as const;
 
 const ListKindSelect = () => {

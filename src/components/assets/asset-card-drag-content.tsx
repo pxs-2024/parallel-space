@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Box, Package, Clock, Link2, MoreVertical } from "lucide-react";
+import { Box, Package, Clock, MoreVertical } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { getTransparentCardGradient } from "@/features/space/utils/avatar-gradient";
 import { cn } from "@/lib/utils";
@@ -12,8 +12,8 @@ function hexToRgba(hex: string, alpha: number): string {
 	return `rgba(${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)},${alpha})`;
 }
 
-type AssetKind = "STATIC" | "CONSUMABLE" | "TEMPORAL" | "VIRTUAL";
-type AssetState = "ACTIVE" | "PENDING_RESTOCK" | "PENDING_DISCARD" | "ARCHIVED" | "DISCARDED";
+type AssetKind = "STATIC" | "CONSUMABLE" | "TEMPORAL";
+type AssetState = "ACTIVE" | "PENDING" | "PAUSED" | "DISCARDED";
 
 export type AssetForDrag = {
 	name: string;
@@ -35,37 +35,32 @@ export type AssetForDrag = {
 const KIND_ICONS = {
 	CONSUMABLE: Package,
 	TEMPORAL: Clock,
-	VIRTUAL: Link2,
 	STATIC: Box,
 } as const;
 
 const KIND_LABEL_KEYS = {
 	CONSUMABLE: "kindConsumable",
 	TEMPORAL: "kindTemporal",
-	VIRTUAL: "kindVirtual",
 	STATIC: "kindStatic",
 } as const;
 
 const STATE_LABEL_KEYS: Record<string, string> = {
 	ACTIVE: "stateActive",
-	PENDING_RESTOCK: "statePendingRestock",
-	PENDING_DISCARD: "statePendingDiscard",
-	ARCHIVED: "stateArchived",
+	PENDING: "statePending",
+	PAUSED: "statePaused",
 	DISCARDED: "stateDiscarded",
 };
 
 const STATE_DOT_CLASS = {
 	ACTIVE: "bg-emerald-500",
-	PENDING_RESTOCK: "bg-amber-500",
-	PENDING_DISCARD: "bg-amber-500",
-	ARCHIVED: "bg-muted-foreground/60",
+	PENDING: "bg-amber-500",
+	PAUSED: "bg-muted-foreground/60",
 	DISCARDED: "bg-destructive/80",
 } as Record<string, string>;
 
 const ICON_STYLE: Record<AssetKind, { iconBg: string; iconColor: string }> = {
 	CONSUMABLE: { iconBg: "bg-amber-500/20", iconColor: "text-amber-700 dark:text-amber-400" },
 	TEMPORAL: { iconBg: "bg-primary/20", iconColor: "text-primary" },
-	VIRTUAL: { iconBg: "bg-violet-500/20", iconColor: "text-violet-700 dark:text-violet-400" },
 	STATIC: { iconBg: "bg-muted", iconColor: "text-muted-foreground" },
 };
 

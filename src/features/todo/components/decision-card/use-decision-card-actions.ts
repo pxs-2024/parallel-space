@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { useRouter } from "@/i18n/navigation";
-import { snoozeAction, completeAction, type SnoozeChoice } from "@/features/todo/actions/respond-to-action";
+import { completeAction } from "@/features/todo/actions/respond-to-action";
 import { getDecisionItemKey } from "./types";
 import type { DecisionItem } from "./types";
 
@@ -20,13 +20,13 @@ export function useDecisionCardActions(item: DecisionItem, onRemoving?: (key: st
 		setTimeout(() => router.refresh(), REFRESH_DELAY_MS);
 	}, [item, onRemoving, router]);
 
-	const handleSnooze = useCallback(
-		async (actionId: string, choice: SnoozeChoice) => {
+	const handleRestock = useCallback(
+		async (actionId: string, amount: number) => {
 			setBusy(true);
 			try {
-				const res = await snoozeAction(actionId, choice);
+				const res = await completeAction(actionId, amount, undefined);
 				if (res.ok) {
-					toast.success("已忽略");
+					toast.success("已补充");
 					onSuccess();
 				} else if (res.error) {
 					toast.error(res.error);
@@ -38,13 +38,13 @@ export function useDecisionCardActions(item: DecisionItem, onRemoving?: (key: st
 		[onSuccess]
 	);
 
-	const handleComplete = useCallback(
-		async (actionId: string, amount?: number, nextDueAt?: string) => {
+	const handlePostpone = useCallback(
+		async (actionId: string, nextDueAt: string) => {
 			setBusy(true);
 			try {
-				const res = await completeAction(actionId, amount, nextDueAt);
+				const res = await completeAction(actionId, undefined, nextDueAt);
 				if (res.ok) {
-					toast.success("已处理");
+					toast.success("已延期");
 					onSuccess();
 				} else if (res.error) {
 					toast.error(res.error);
@@ -56,5 +56,5 @@ export function useDecisionCardActions(item: DecisionItem, onRemoving?: (key: st
 		[onSuccess]
 	);
 
-	return { busy, exiting, handleSnooze, handleComplete };
+	return { busy, exiting, handleRestock, handlePostpone };
 }

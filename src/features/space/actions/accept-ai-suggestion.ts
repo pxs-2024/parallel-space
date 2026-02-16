@@ -39,6 +39,7 @@ export async function acceptAiSuggestion(params: {
       assetId: asset.id,
       type: "RESTOCK",
       status: "OPEN",
+      dueAt: new Date(), // 新建物品无 lastDoneAt，用需求产生时间
     },
   });
 

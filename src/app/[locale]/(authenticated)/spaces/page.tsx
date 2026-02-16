@@ -1,4 +1,3 @@
-import { loadRecommendations } from "@/features/space/actions/load-recommendations";
 import { FloorPlanSpacesView } from "@/features/space/components/floor-plan-spaces-view";
 import { getSpaces } from "@/features/space/queries/get-spaces";
 

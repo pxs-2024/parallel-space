@@ -1,28 +1,13 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
-
-/** 单次更新一个物品的位置（保留供单点调用） */
+/** Schema 已移除 x/y/width/height，此 action 保留为空实现以避免调用处报错。 */
 export async function updateAssetPosition(
-	spaceId: string,
-	assetId: string,
-	x: number,
-	y: number
+	_spaceId: string,
+	_assetId: string,
+	_x: number,
+	_y: number
 ) {
-	const asset = await prisma.asset.findFirst({
-		where: {
-			id: assetId,
-			spaceId,
-			isDeleted: false,
-		},
-		select: { id: true },
-	});
-	if (!asset) return;
-
-	await prisma.asset.update({
-		where: { id: assetId },
-		data: { x, y },
-	});
+	// no-op
 }
 
 export type AssetPositionUpdate = {
@@ -33,28 +18,10 @@ export type AssetPositionUpdate = {
 	height?: number;
 };
 
-/** 批量更新当前空间内物品位置与尺寸，一次请求完成 */
+/** Schema 已移除位置与尺寸字段，此 action 保留为空实现。 */
 export async function updateAssetPositions(
-	spaceId: string,
-	updates: AssetPositionUpdate[]
+	_spaceId: string,
+	_updates: AssetPositionUpdate[]
 ) {
-	if (updates.length === 0) return;
-
-	await prisma.$transaction(
-		updates.map(({ assetId, x, y, width, height }) =>
-			prisma.asset.updateMany({
-				where: {
-					id: assetId,
-					spaceId,
-					isDeleted: false,
-				},
-				data: {
-					x,
-					y,
-					...(width != null && { width }),
-					...(height != null && { height }),
-				},
-			})
-		)
-	);
+	// no-op
 }
