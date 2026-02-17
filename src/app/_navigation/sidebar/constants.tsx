@@ -1,5 +1,5 @@
-import { accountProfilePath, todoPath, historyPath, spacesPath, aiSuggestionsPath } from "@/paths";
-import { LucideBook, LucideCircleUser, LucideHistory, LucideLibrary, LucideSparkles } from "lucide-react";
+import { accountProfilePath, todoPath, spacesPath, aiSuggestionsPath } from "@/paths";
+import { LucideBook, LucideCircleUser, LucideLibrary, LucideSparkles } from "lucide-react";
 import { NavItem } from "./types";
 
 export const navItems: NavItem[] = [
@@ -17,11 +17,6 @@ export const navItems: NavItem[] = [
 		title: "aiSuggestions",
 		icon: <LucideSparkles />,
 		href: aiSuggestionsPath(),
-	},
-	{
-		title: "history",
-		icon: <LucideHistory />,
-		href: historyPath(),
 	},
 	{
 		separator: true,

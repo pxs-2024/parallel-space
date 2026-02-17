@@ -11,4 +11,3 @@ export const passwordForgotPath = () => "/password-forget";
 export const spacesPath = () => "/spaces";
 export const aiSuggestionsPath = () => "/ai-suggestions";
 export const todoPath = () => "/todo";
-export const historyPath = () => "/history";

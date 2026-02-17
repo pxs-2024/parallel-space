@@ -35,7 +35,6 @@
     "todo": "待办",
     "spaces": "物品管理",
     "aiSuggestions": "AI建议",
-    "history": "历史记录",
     "account": "个人资料"
   },
   "page": {
@@ -44,9 +43,7 @@
     "spacesTitle": "物品管理",
     "spacesDescription": "按空间管理物品，查看与操作",
     "aiSuggestionsTitle": "AI建议",
-    "aiSuggestionsDescription": "根据空间查看推荐清单，获取 AI 补充建议",
-    "historyTitle": "历史记录",
-    "historyDescription": "查看已处理的补充、提醒与丢弃记录"
+    "aiSuggestionsDescription": "根据空间查看推荐清单，获取 AI 补充建议"
   },
   "drawer": {
     "resizeHandle": "拖动调整高度",

@@ -35,7 +35,6 @@
     "todo": "To-do",
     "spaces": "Item Management",
     "aiSuggestions": "AI Suggestions",
-    "history": "History",
     "account": "Account"
   },
   "page": {
@@ -44,9 +43,7 @@
     "spacesTitle": "Item Management",
     "spacesDescription": "Manage items by space, view and act",
     "aiSuggestionsTitle": "AI Suggestions",
-    "aiSuggestionsDescription": "View recommendations by space and get AI suggestions",
-    "historyTitle": "History",
-    "historyDescription": "View processed restock, remind, and discard records"
+    "aiSuggestionsDescription": "View recommendations by space and get AI suggestions"
   },
   "drawer": {
     "resizeHandle": "Drag to resize height",
