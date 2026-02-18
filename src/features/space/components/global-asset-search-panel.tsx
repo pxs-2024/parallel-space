@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { ExternalLink } from "lucide-react";
 import { GlobalSearchFiltersBar } from "./global-search-filters-bar";
-import { AssetCardHorizontal } from "@/components/assets/asset-card-horizontal";
+import { SpaceAssetCard } from "./space-asset-card";
 import { AssetDetailDrawer } from "@/components/assets/asset-detail-drawer";
 import { Button } from "@/components/ui/button";
 import {
@@ -189,19 +189,19 @@ export function GlobalAssetSearchPanel({
 				) : undefined}
 			/>
 			<div className="scrollbar-hide min-h-0 flex-1 overflow-auto p-4">
-				<ul className="flex flex-col gap-3">
+				<ul className="flex flex-col gap-2" role="list">
 					{paginatedItems.map((asset) => (
-						<li key={asset.id} className="list-none">
+						<li key={asset.id} className="w-full">
 							<ContextMenu>
 								<ContextMenuTrigger asChild>
-									<div className="block w-full outline-none rounded-xl" data-context-menu-handled>
-										<AssetCardHorizontal
-											asset={asset}
-											nameOnly
-											spaceName={asset.spaceName}
-											onCardClick={handleCardClick}
-										/>
-									</div>
+									<SpaceAssetCard
+										asset={asset}
+										layout="horizontal"
+										spaceName={asset.spaceName}
+										showMoreIcon={false}
+										onClick={() => handleCardClick(asset)}
+										className="w-full"
+									/>
 								</ContextMenuTrigger>
 								<ContextMenuContent className="min-w-40">
 									<ContextMenuItem onClick={() => handleJumpToSpace(asset)}>

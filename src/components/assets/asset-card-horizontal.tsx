@@ -22,12 +22,13 @@ type AssetCardHorizontalAsset = Prisma.AssetGetPayload<{
 		dueAt: true;
 		lastDoneAt: true;
 		nextDueAt: true;
-		refUrl: true;
-		expiresAt: true;
-		cardColor: true;
-		cardOpacity: true;
 	};
-}>;
+}> & {
+	refUrl?: string | null;
+	expiresAt?: Date | null;
+	cardColor?: string | null;
+	cardOpacity?: number | null;
+};
 
 type AssetCardHorizontalProps = {
 	asset: AssetCardHorizontalAsset;
@@ -62,10 +63,9 @@ function getKindIcon(kind: AssetKind) {
 function getStateLabel(state: string): string {
 	const map: Record<string, string> = {
 		ACTIVE: "在用",
-		PENDING_RESTOCK: "待补充",
-		PENDING_DISCARD: "待废弃",
-		ARCHIVED: "已归档",
-		DISCARDED: "已废弃",
+		PENDING: "待处理",
+		PAUSED: "暂停",
+		DISCARDED: "已丢弃",
 	};
 	return map[state] ?? state;
 }
@@ -74,8 +74,7 @@ function getStateBadgeVariant(state: string): "muted" | "blue" | "amber" | "red"
 	switch (state) {
 		case "ACTIVE":
 			return "blue";
-		case "PENDING_RESTOCK":
-		case "PENDING_DISCARD":
+		case "PENDING":
 			return "amber";
 		case "DISCARDED":
 			return "red";
@@ -105,14 +104,16 @@ const AssetCardHorizontal = ({ asset, className, nameOnly = false, spaceName, on
 	const hasDescription = asset.description != null && asset.description !== "";
 	const qtyText = [fmt(asset.quantity), fmt(asset.unit)].filter(Boolean).join(" ") || "—";
 	const KindIcon = getKindIcon(asset.kind as AssetKind);
-	const hasDue = asset.nextDueAt ?? asset.dueAt ?? asset.expiresAt;
-	const dueText = formatDue(asset.nextDueAt ?? asset.dueAt ?? asset.expiresAt ?? null);
+	const hasDue = asset.nextDueAt ?? asset.dueAt ?? (asset as { expiresAt?: Date | null }).expiresAt;
+	const dueText = formatDue(asset.nextDueAt ?? asset.dueAt ?? (asset as { expiresAt?: Date | null }).expiresAt ?? null);
 	const hasReorder = asset.reorderPoint != null;
 
 	// 有卡片背景色时头像使用同色，否则用名称生成的渐变
+	const cardColor = (asset as { cardColor?: string | null }).cardColor;
+	const cardOpacity = (asset as { cardOpacity?: number | null }).cardOpacity;
 	const avatarBackground =
-		asset.cardColor != null && asset.cardColor !== ""
-			? `linear-gradient(135deg, ${hexToRgba(asset.cardColor, 0)} 0%, ${hexToRgba(asset.cardColor, asset.cardOpacity != null ? Math.max(0, Math.min(1, Number(asset.cardOpacity))) : 0.25)} 100%)`
+		cardColor != null && cardColor !== ""
+			? `linear-gradient(135deg, ${hexToRgba(cardColor, 0)} 0%, ${hexToRgba(cardColor, cardOpacity != null ? Math.max(0, Math.min(1, Number(cardOpacity))) : 0.25)} 100%)`
 			: getAvatarGradient(asset.name);
 
 	if (nameOnly) {
@@ -121,27 +122,29 @@ const AssetCardHorizontal = ({ asset, className, nameOnly = false, spaceName, on
 				role={onCardClick ? "button" : undefined}
 				onClick={onCardClick ? () => onCardClick(asset) : undefined}
 				className={cn(
-					"rounded-xl border border-border/80 bg-card shadow-sm transition-all duration-200",
+					"h-16 rounded-xl border border-border/80 bg-card shadow-sm transition-all duration-200",
 					"hover:border-border hover:shadow-md hover:bg-card/98",
 					onCardClick && "cursor-pointer",
 					className
 				)}
 			>
-				<CardContent className="flex flex-row items-center gap-3 py-1.5 px-3">
-					<Avatar className="h-12 w-12 shrink-0 rounded-xl ring-2 ring-border/40">
+				<CardContent className="flex h-full flex-row items-center gap-3 px-3 py-2">
+					<Avatar className="h-10 w-10 shrink-0 rounded-lg ring-2 ring-border/40">
 						<AvatarFallback
-							className="rounded-xl font-medium text-white p-1.5 text-sm [text-shadow:0_1px_2px_rgba(0,0,0,0.2)]"
+							className="rounded-lg font-medium text-white p-1 text-xs [text-shadow:0_1px_2px_rgba(0,0,0,0.2)]"
 							style={{ background: avatarBackground }}
 						>
 							{asset.name.slice(0, 2)}
 						</AvatarFallback>
 					</Avatar>
-					<div className="flex min-w-0 flex-1 flex-col gap-0.5">
+					<div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
 						<span className="truncate text-sm font-semibold text-foreground">
 							{asset.name}
 						</span>
-						{spaceName && (
-							<span className="truncate text-xs text-muted-foreground">{spaceName}</span>
+						{spaceName != null && spaceName !== "" && (
+							<span className="truncate text-xs text-muted-foreground" title={spaceName}>
+								空间 {spaceName}
+							</span>
 						)}
 					</div>
 				</CardContent>
@@ -194,7 +197,7 @@ const AssetCardHorizontal = ({ asset, className, nameOnly = false, spaceName, on
 					)}
 
 					{/* 第三行：到期、补货线、外链 */}
-					{(hasDue || hasReorder || asset.refUrl) && (
+					{(hasDue || hasReorder || (asset as { refUrl?: string | null }).refUrl) && (
 						<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
 							{hasDue && dueText && (
 								<span className="flex items-center gap-1">
@@ -205,9 +208,9 @@ const AssetCardHorizontal = ({ asset, className, nameOnly = false, spaceName, on
 							{hasReorder && (
 								<span>补货线 {fmt(asset.reorderPoint)}</span>
 							)}
-							{asset.refUrl && (
+							{(asset as { refUrl?: string | null }).refUrl && (
 								<a
-									href={asset.refUrl}
+									href={(asset as { refUrl: string }).refUrl}
 									target="_blank"
 									rel="noopener noreferrer"
 									className="inline-flex items-center gap-1 text-primary hover:underline"
