@@ -1,7 +1,6 @@
-import type { Cell, PointerEvt, ToolId } from "./types";
+import type { Cell, FPState, PointerEvt, ToolId, View } from "./types";
 import type { Store } from "./store";
 import type { History, Command } from "./history";
-import type { FPState, View } from "./types";
 import { screenToCell, screenToPoint } from "./camera";
 import { HitTest } from "./hitTest";
 import { BoxSelectState, CleanSegmentsState, PanState, DragState, MoveSpaceState } from "./states";
@@ -88,7 +87,11 @@ export const CleanSegmentsTool: ToolStrategy = {
   onPointerDown(ctx, e) {
     const view = ctx.store.getState().view;
     const p = ctx.screenToPoint(e.screenX, e.screenY, view);
-    ctx.ephemeral({ name: "initOverlay", execute: s => {}, undo: s => {} } as any);
+    ctx.ephemeral({
+			name: "initOverlay",
+			execute: (store: Store<FPState>) => {},
+			undo: (store: Store<FPState>) => {},
+		});
     return new CleanSegmentsState([p]);
   },
 };

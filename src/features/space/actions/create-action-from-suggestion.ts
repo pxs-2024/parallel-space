@@ -4,11 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getLocale } from "next-intl/server";
 import { getAuth } from "@/features/auth/queries/get-auth";
+import type { ActionType } from "@/generated/prisma/client";
 
 type CreateParams = {
   spaceId: string;
   assetId: string;
-  type: "RESTOCK" | "REMIND";
+  type: ActionType;
   dueAt?: Date | null;
 };
 

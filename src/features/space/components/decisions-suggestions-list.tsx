@@ -3,7 +3,13 @@
 import { useRouter } from "next/navigation";
 import { createActionFromSuggestion } from "@/features/space/actions/create-action-from-suggestion";
 import type { SuggestedAction } from "@/features/space/queries/decision-rules";
+import type { ActionType } from "@/generated/prisma/client";
 import { useState } from "react";
+
+/** 建议类型 REMIND 对应库里的 RESTOCK（时间型延期） */
+function toActionType(t: SuggestedAction["type"]): ActionType {
+	return t === "REMIND" ? "RESTOCK" : t;
+}
 
 type DecisionsSuggestionsListProps = {
   items: SuggestedAction[];
@@ -20,7 +26,7 @@ export function DecisionsSuggestionsList({ items }: DecisionsSuggestionsListProp
       const res = await createActionFromSuggestion({
         spaceId: s.spaceId,
         assetId: s.assetId,
-        type: s.type,
+        type: toActionType(s.type),
         dueAt: s.dueAt ?? undefined,
       });
       if (res.ok) router.refresh();

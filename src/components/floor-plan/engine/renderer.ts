@@ -1,4 +1,4 @@
-import type { FPState, Viewport } from "./types";
+import type { FPState, Space, Viewport } from "./types";
 import {
   getCanvasTheme,
   resetCanvas,
@@ -11,6 +11,11 @@ import {
   drawPoint,
 } from "../drawUtils";
 import { screenToWorldPx } from "./camera";
+
+/** 将 engine 的 Space（segs 可选）转为 drawUtils 所需的 Space（segs 必填） */
+function toDrawSpace(s: Space): { id: string; name: string; cells: import("../types").Cell[]; segs: import("../types").Segment[][] } {
+  return { ...s, segs: s.segs ?? [] };
+}
 
 export function renderFloorPlan(
   ctx: CanvasRenderingContext2D,
@@ -30,13 +35,13 @@ export function renderFloorPlan(
 
   // 悬浮模版时：隐藏原空间，只在视口中心绘制模版预览
   if (previewSpaces?.length) {
-    drawPreviewSpaces(ctx, previewSpaces, view.scale);
+    drawPreviewSpaces(ctx, previewSpaces.map(toDrawSpace), view.scale);
   } else {
     const spacesToDraw = editingSpaceId ? spaces.filter((s) => s.id !== editingSpaceId) : spaces;
-    drawSpaces(ctx, spacesToDraw, view.scale, theme);
+    drawSpaces(ctx, spacesToDraw.map(toDrawSpace), view.scale, theme);
     const hover = !editMode ? spaces.find((s) => s.id === hoverSpaceId) : null;
-    if (hover) drawHoverSpace(ctx, hover, view.scale, theme);
-    drawBoxSelectCells(ctx, spaces, selectedSpaceId, view.scale, theme);
+    if (hover) drawHoverSpace(ctx, toDrawSpace(hover), view.scale, theme);
+    drawBoxSelectCells(ctx, spaces.map(toDrawSpace), selectedSpaceId, view.scale, theme);
   }
 
   if (overlay?.type === "box") {

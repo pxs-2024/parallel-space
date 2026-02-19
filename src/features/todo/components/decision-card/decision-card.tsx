@@ -35,7 +35,6 @@ export type DecisionCardProps = {
 };
 
 export function DecisionCard({ item, onRemoving, spaceOptions = [] }: DecisionCardProps) {
-	const a = item.data;
 	const { busy, exiting, handleRestock, handlePostpone, handlePurchased } =
 		useDecisionCardActions(item, onRemoving);
 
@@ -48,12 +47,13 @@ export function DecisionCard({ item, onRemoving, spaceOptions = [] }: DecisionCa
 
 	// 新增物品：待采购，买好后选空间入库
 	if (item.kind === "newAsset") {
-		const name = a.name;
+		const data = item.data;
+		const name = data.name;
 		const needText =
-			a.needQty > 0
-				? a.unit
-					? `需要 ${a.needQty} ${a.unit}`
-					: `需要 ${a.needQty} 份`
+			data.needQty > 0
+				? data.unit
+					? `需要 ${data.needQty} ${data.unit}`
+					: `需要 ${data.needQty} 份`
 				: "";
 		return (
 			<article
@@ -129,7 +129,9 @@ export function DecisionCard({ item, onRemoving, spaceOptions = [] }: DecisionCa
 		);
 	}
 
-	const days = useMemo(() => daysFromNow((a as { dueAt: Date | null }).dueAt), [(a as { dueAt: Date | null }).dueAt]);
+	if (item.kind !== "pending") return null;
+	const a = item.data;
+	const days = useMemo(() => daysFromNow(a.dueAt), [a.dueAt]);
 
 	const handlePostponeSubmit = useCallback(() => {
 		if (!postponeDate.trim()) return;

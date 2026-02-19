@@ -198,7 +198,6 @@ export function GlobalAssetSearchPanel({
 										asset={asset}
 										layout="horizontal"
 										spaceName={asset.spaceName}
-										showMoreIcon={false}
 										onClick={() => handleCardClick(asset)}
 										className="w-full"
 									/>

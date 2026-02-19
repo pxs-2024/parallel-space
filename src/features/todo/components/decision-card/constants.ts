@@ -1,4 +1,4 @@
-import type { SnoozeChoice } from "@/features/todo/actions/respond-to-action";
+export type SnoozeChoice = "ignore_day" | "ignore_week" | "ignore_month";
 
 export const SNOOZE_OPTIONS: { choice: SnoozeChoice; label: string }[] = [
 	{ choice: "ignore_day", label: "忽略一天" },
