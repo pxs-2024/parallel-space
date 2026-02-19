@@ -139,7 +139,7 @@ export function FloorPlanSpacesView({ spaces: serverSpaces, allAssets }: FloorPl
 					variant={editMode ? "default" : "outline"}
 					size="sm"
 					onClick={() => (editMode ? onFinishEdit() : setEditMode(true))}
-					className={`absolute top-3 z-10 shadow-sm ${editMode ? "right-[12.75rem]" : "right-3"}`}
+					className={`absolute top-3 z-10 shadow-sm ${editMode ? "right-14" : "right-3"}`}
 				>
 					{editMode ? "完成" : "编辑"}
 				</Button>
@@ -148,7 +148,8 @@ export function FloorPlanSpacesView({ spaces: serverSpaces, allAssets }: FloorPl
 					variant="outline"
 					size="icon"
 					className={cn(
-						"absolute top-3 right-12 z-10 h-9 w-9 shadow-sm transition-all duration-200",
+						"absolute top-3 z-10 h-9 w-9 shadow-sm transition-all duration-200",
+						editMode ? "right-24" : "right-12",
 						searchPanelOpen && "pointer-events-none scale-90 opacity-0"
 					)}
 					onClick={() => setSearchPanelOpen(true)}

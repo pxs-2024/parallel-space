@@ -10,7 +10,7 @@ export type Space = { id: string; name: string; description?: string; cells: Cel
 export type View = { translateX: number; translateY: number; scale: number };
 export type Viewport = { width: number; height: number };
 
-export type ToolId = "editDefault" | "select" | "deselect" | "cleanSegments" | "none";
+export type ToolId = "editDefault" | "select" | "deselect" | "selectDeselect" | "cleanSegments" | "none";
 
 export type Overlay =
   | null

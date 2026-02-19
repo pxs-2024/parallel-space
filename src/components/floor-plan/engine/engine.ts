@@ -77,7 +77,6 @@ export class FloorPlanEngine {
 	}
 
 	setTool(id: ToolId) {
-    console.log(id)
 		this.toolId = id;
     this.requestRender(); 
 	}

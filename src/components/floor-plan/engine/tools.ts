@@ -72,6 +72,17 @@ export const DeselectTool: ToolStrategy = {
   },
 };
 
+/** 左键选择、中键取消，合为一个选项 */
+export const SelectDeselectTool: ToolStrategy = {
+  id: "selectDeselect",
+  onPointerDown(ctx, e) {
+    const view = ctx.store.getState().view;
+    const startCell = ctx.screenToCell(e.screenX, e.screenY, view);
+    const subtract = e.button === 1; // 0=左键选择，1=中键取消
+    return new BoxSelectState(startCell, e.screenX, e.screenY, subtract, startCell);
+  },
+};
+
 export const CleanSegmentsTool: ToolStrategy = {
   id: "cleanSegments",
   onPointerDown(ctx, e) {
@@ -86,6 +97,7 @@ export function toolById(id: ToolId): ToolStrategy {
   switch (id) {
     case "select": return SelectTool;
     case "deselect": return DeselectTool;
+    case "selectDeselect": return SelectDeselectTool;
     case "cleanSegments": return CleanSegmentsTool;
     case "editDefault": return DefaultTool;
     default: return NoneTool;
