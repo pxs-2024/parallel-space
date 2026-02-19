@@ -47,3 +47,37 @@ export async function acceptAiSuggestion(params: {
   revalidatePath(`/${locale}/todo`);
   return { ok: true };
 }
+
+/** 仅加入待办（新增物品类）：不创建 asset，待办里完成时再选空间 */
+export async function createNewAssetTodoAction(params: {
+  spaceId: string;
+  name: string;
+  needQty: number;
+  unit?: string | null;
+}) {
+  const auth = await getAuth();
+  if (!auth) return { ok: false, error: "未登录" };
+
+  const { spaceId, name, needQty, unit } = params;
+  const space = await prisma.space.findFirst({
+    where: { id: spaceId, userId: auth.user.id },
+  });
+  if (!space) return { ok: false, error: "空间不存在或无权操作" };
+
+  await prisma.action.create({
+    data: {
+      spaceId,
+      type: "NEW_ASSET",
+      status: "OPEN",
+      payload: {
+        name: name.trim().slice(0, 191),
+        needQty: needQty > 0 ? needQty : 0,
+        unit: unit?.trim().slice(0, 50) ?? null,
+      },
+    },
+  });
+
+  const locale = await getLocale();
+  revalidatePath(`/${locale}/todo`);
+  return { ok: true };
+}

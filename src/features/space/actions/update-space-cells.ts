@@ -4,11 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getLocale } from "next-intl/server";
 import { getAuth } from "@/features/auth/queries/get-auth";
+import { isConnected } from "@/components/floor-plan/utils";
 
 export type CellInput = { x: number; y: number };
 
 /**
- * 仅更新空间在平面图上的格子范围（拖拽移动区域后调用）
+ * 仅更新空间在平面图上的格子范围（拖拽移动区域后调用）。
+ * 校验新区域必须连通（isConnected）。
  */
 export async function updateSpaceCells(
 	spaceId: string,
@@ -22,6 +24,10 @@ export async function updateSpaceCells(
 			where: { id: spaceId, userId: auth.user.id },
 		});
 		if (!space) return { ok: false, error: "空间不存在或无权修改" };
+
+		if (cells.length > 0 && !isConnected(cells)) {
+			return { ok: false, error: "空间区域必须连通" };
+		}
 
 		await prisma.space.update({
 			where: { id: spaceId },

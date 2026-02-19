@@ -5,30 +5,42 @@ import { Search } from "lucide-react";
 import { useRouter } from "@/i18n/navigation";
 import { useQueryStates, parseAsString } from "nuqs";
 import { Input } from "@/components/ui/input";
-import type { PendingRestockItem } from "@/features/todo/queries/get-todo-page-data";
+import type {
+	PendingRestockItem,
+	PendingNewAssetItem,
+} from "@/features/todo/queries/get-todo-page-data";
 import {
 	DecisionCard,
 	getDecisionItemKey,
+	getItemCreatedAt,
 	type DecisionItem,
 } from "@/features/todo/components/decision-card";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-function toItems(pending: PendingRestockItem[]): DecisionItem[] {
-	return pending.map((data) => ({ kind: "pending", data }));
+function toItems(pending: PendingRestockItem[], newAssets: PendingNewAssetItem[]): DecisionItem[] {
+	const list: DecisionItem[] = [
+		...pending.map((data) => ({ kind: "pending" as const, data })),
+		...newAssets.map((data) => ({ kind: "newAsset" as const, data })),
+	];
+	list.sort((a, b) => getItemCreatedAt(b).getTime() - getItemCreatedAt(a).getTime());
+	return list;
 }
 
 function getItemSearchText(item: DecisionItem): string {
+	if (item.kind === "newAsset") return `${item.data.spaceName} ${item.data.name}`;
 	return `${item.data.spaceName} ${item.data.assetName}`;
 }
 
 type DecisionsPanelProps = {
 	pending: PendingRestockItem[];
+	newAssets: PendingNewAssetItem[];
+	spaceOptions?: { id: string; name: string }[];
 };
 
-export function DecisionsPanel({ pending }: DecisionsPanelProps) {
+export function DecisionsPanel({ pending, newAssets, spaceOptions = [] }: DecisionsPanelProps) {
 	const router = useRouter();
-	const [items, setItems] = useState<DecisionItem[]>(() => toItems(pending));
+	const [items, setItems] = useState<DecisionItem[]>(() => toItems(pending, newAssets));
 	const [query, setQuery] = useQueryStates({ q: parseAsString.withDefault("") }, { shallow: false });
 	const [searchInput, setSearchInput] = useState(query.q);
 	const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -38,8 +50,8 @@ export function DecisionsPanel({ pending }: DecisionsPanelProps) {
 	}, [query.q]);
 
 	useEffect(() => {
-		setItems(toItems(pending));
-	}, [pending]);
+		setItems(toItems(pending, newAssets));
+	}, [pending, newAssets]);
 
 	useEffect(() => {
 		return () => {
@@ -105,7 +117,7 @@ export function DecisionsPanel({ pending }: DecisionsPanelProps) {
 								className="flex min-w-0 transition-[margin] duration-300 ease-out"
 								style={{ viewTransitionName: safeName } as React.CSSProperties}
 							>
-								<DecisionCard item={item} onRemoving={handleRemoving} />
+								<DecisionCard item={item} onRemoving={handleRemoving} spaceOptions={spaceOptions} />
 							</div>
 						);
 					})}

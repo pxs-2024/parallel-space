@@ -1,6 +1,7 @@
 import { Cell, DragMode, Point, Space } from "./types";
-import { DragState } from "./canvas-grid-selector22";
 import { MAX_CANVAS_SIZE, SIZE } from "./constants";
+
+export type BoxSelectState = { startCell: Cell; currentCell: Cell };
 import { clampCell } from "./utils";
 
 export type CanvasTheme = {
@@ -263,6 +264,53 @@ export const drawHoverSpace = (
 	}
 };
 
+/** 绘制模版预览（浅色，不压住现有空间） */
+export const drawPreviewSpaces = (
+	ctx: CanvasRenderingContext2D,
+	spaceList: Space[],
+	scale: number
+) => {
+	const fill = "oklch(0.75 0.02 250 / 0.5)";
+	const stroke = "oklch(0.65 0.04 250 / 0.8)";
+	if (spaceList.length === 0) return;
+	ctx.lineWidth = 2 / scale;
+	ctx.strokeStyle = stroke;
+	ctx.fillStyle = fill;
+	ctx.lineCap = "round";
+	ctx.lineJoin = "round";
+	for (const space of spaceList) {
+		if (space.segs?.length === 0) continue;
+		for (const path of space.segs ?? []) {
+			if (path.length === 0) continue;
+			ctx.beginPath();
+			ctx.moveTo(path[0].x1 * SIZE, path[0].y1 * SIZE);
+			ctx.lineTo(path[0].x2 * SIZE, path[0].y2 * SIZE);
+			for (let i = 1; i < path.length; i++) {
+				ctx.lineTo(path[i].x2 * SIZE, path[i].y2 * SIZE);
+			}
+			ctx.closePath();
+			ctx.fill();
+			ctx.stroke();
+		}
+	}
+	const fontSize = Math.max(10, 14 / scale);
+	ctx.font = `${fontSize}px sans-serif`;
+	ctx.textAlign = "center";
+	ctx.textBaseline = "middle";
+	ctx.fillStyle = "oklch(0.4 0.02 250 / 0.9)";
+	for (const space of spaceList) {
+		if (space.cells.length === 0) continue;
+		let sumX = 0, sumY = 0;
+		for (const c of space.cells) {
+			sumX += c.x + 0.5;
+			sumY += c.y + 0.5;
+		}
+		const centerX = (sumX / space.cells.length) * SIZE;
+		const centerY = (sumY / space.cells.length) * SIZE;
+		ctx.fillText(space.name, centerX, centerY);
+	}
+};
+
 // 绘制选中空间样式
 export const drawBoxSelectCells = (
 	ctx: CanvasRenderingContext2D,
@@ -297,7 +345,7 @@ export const drawBoxSelectCells = (
 // 绘制框选单元格的覆盖层（激活状态）
 export const drawActiveBoxSelectCells = (
 	ctx: CanvasRenderingContext2D,
-	state: DragState,
+	state: BoxSelectState,
 	scale: number,
 	theme?: CanvasTheme
 ) => {

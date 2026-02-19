@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Check, Loader2 } from "lucide-react";
 import {
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { loadRecommendations } from "../actions/load-recommendations";
-import { acceptAiSuggestion } from "../actions/accept-ai-suggestion";
+import { createNewAssetTodoAction } from "../actions/accept-ai-suggestion";
 import type { UserRecommendationsResult } from "@/app/api/recommendations/route";
 import type { SpaceMissingItem } from "@/app/api/recommendations/route";
 
@@ -21,6 +22,8 @@ type Step = "loading" | "space" | "done";
 type AdoptedSet = Set<string>;
 
 export function AiSuggestionsPanel() {
+	const t = useTranslations("aiSuggestions");
+	const tCatalog = useTranslations("catalog");
 	const [open, setOpen] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -28,6 +31,7 @@ export function AiSuggestionsPanel() {
 	const [stepIndex, setStepIndex] = useState(0);
 	const [adopted, setAdopted] = useState<AdoptedSet>(new Set());
 	const [adoptingKey, setAdoptingKey] = useState<string | null>(null);
+	const scrollRef = useRef<HTMLDivElement>(null);
 
 	const spacesWithMissing = result
 		? result.spaces.filter((s) => s.missingItems.length > 0)
@@ -37,6 +41,13 @@ export function AiSuggestionsPanel() {
 	const currentSpace = totalSteps > 0 && stepIndex < totalSteps ? spacesWithMissing[stepIndex] : null;
 	const step: Step = loading ? "loading" : totalSteps === 0 || stepIndex >= totalSteps ? "done" : "space";
 	const progressValue = totalSteps > 0 ? ((stepIndex + (step === "space" ? 1 : 0)) / totalSteps) * 100 : 100;
+
+	// 切换推荐页时滚动区域回到顶部
+	useEffect(() => {
+		if (scrollRef.current) {
+			scrollRef.current.scrollTop = 0;
+		}
+	}, [stepIndex]);
 
 	const handleOpen = useCallback(async () => {
 		setOpen(true);
@@ -57,29 +68,35 @@ export function AiSuggestionsPanel() {
 		}
 	}, []);
 
+	const getItemDisplayName = useCallback(
+		(item: SpaceMissingItem) => tCatalog("item." + item.key) || item.name,
+		[tCatalog]
+	);
+
 	const handleAdopt = useCallback(
 		async (spaceId: string, item: SpaceMissingItem) => {
 			const key = `${spaceId}|${item.key}`;
 			if (adopted.has(key)) return;
 			setAdoptingKey(key);
+			const displayName = getItemDisplayName(item);
 			try {
-				const res = await acceptAiSuggestion({
+				const res = await createNewAssetTodoAction({
 					spaceId,
-					name: item.name,
+					name: displayName,
 					needQty: item.needQty,
 					unit: item.unit ?? null,
 				});
 				if (res.ok) {
 					setAdopted((prev) => new Set(prev).add(key));
-					toast.success(`已加入待办：${item.name}`);
+					toast.success(t("toastAdopted", { name: displayName }));
 				} else {
-					toast.error(res.error ?? "采纳失败");
+					toast.error(res.error ?? t("toastError"));
 				}
 			} finally {
 				setAdoptingKey(null);
 			}
 		},
-		[adopted]
+		[adopted, t, getItemDisplayName]
 	);
 
 	const handleIgnore = useCallback((_spaceId: string, _item: SpaceMissingItem) => {}, []);
@@ -98,52 +115,51 @@ export function AiSuggestionsPanel() {
 		<>
 			<Button
 				onClick={handleOpen}
-				className="min-h-12 w-full rounded-xl text-base font-medium shadow-sm transition-shadow hover:shadow"
+				size="default"
+				className="whitespace-nowrap rounded-xl px-5 shadow-sm"
 			>
-				获取 AI 建议
+				{t("getButton")}
 			</Button>
 
 			<Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
 				<DialogContent
-					className="flex max-h-[85vh] max-w-md flex-col gap-6 rounded-2xl border border-neutral-200/80 bg-white p-6 shadow-xl **:data-[slot=dialog-close]:text-neutral-500 **:data-[slot=dialog-close]:rounded-lg **:data-[slot=dialog-close]:p-2 **:data-[slot=dialog-close]:hover:text-neutral-900"
-					overlayClassName="bg-neutral-900/40"
+					className="flex h-[min(420px,85vh)] max-w-md flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xl **:data-[slot=dialog-close]:text-muted-foreground **:data-[slot=dialog-close]:rounded-lg **:data-[slot=dialog-close]:p-2 **:data-[slot=dialog-close]:hover:text-foreground"
+					overlayClassName="bg-black/40"
 					showCloseButton={step !== "loading"}
 				>
 					<DialogHeader className="gap-3 text-left">
-						<DialogTitle className="text-xl font-semibold leading-tight text-neutral-900 sm:text-[22px]">
-							{step === "loading" && "获取建议中"}
-							{step === "space" && currentSpace && `${currentSpace.spaceName} 推荐补充`}
-							{step === "done" && "完成"}
+						<DialogTitle className="text-xl font-semibold leading-tight text-card-foreground sm:text-[22px]">
+							{step === "loading" && t("loading")}
+							{step === "space" && currentSpace && t("spaceRecommend", { name: currentSpace.spaceName })}
+							{step === "done" && t("done")}
 						</DialogTitle>
 						{step === "loading" && (
-							<DialogDescription className="text-sm leading-relaxed text-neutral-600">
-								正在根据你的空间与物品生成建议，请稍候…
+							<DialogDescription className="text-sm leading-relaxed text-muted-foreground">
+								{t("loadingHint")}
 							</DialogDescription>
 						)}
 						{step === "space" && currentSpace && (
-							<DialogDescription className="text-sm leading-relaxed text-neutral-600">
-								第 {stepIndex + 1} / {totalSteps} 个空间，可采纳或忽略每条建议。
+							<DialogDescription className="text-sm leading-relaxed text-muted-foreground">
+								{t("stepHint", { current: stepIndex + 1, total: totalSteps })}
 							</DialogDescription>
 						)}
 						{step === "done" && (
-							<DialogDescription className="text-sm leading-relaxed text-neutral-600">
-								{totalSteps === 0
-									? error ?? "当前无明显缺口，清单已较完善。"
-									: "已浏览全部空间建议，采纳的项已加入待办。"}
+							<DialogDescription className="text-sm leading-relaxed text-muted-foreground">
+								{totalSteps === 0 ? error ?? t("noGaps") : t("allDone")}
 							</DialogDescription>
 						)}
 					</DialogHeader>
 
 					{step === "space" && totalSteps > 0 && (
 						<div
-							className="h-2 shrink-0 w-full overflow-hidden rounded-full bg-neutral-200"
+							className="h-2 shrink-0 w-full overflow-hidden rounded-full bg-muted"
 							role="progressbar"
 							aria-valuenow={Math.round(progressValue)}
 							aria-valuemin={0}
 							aria-valuemax={100}
 						>
 							<div
-								className="h-full rounded-full bg-neutral-700 transition-transform duration-300 ease-out"
+								className="h-full rounded-full bg-primary transition-transform duration-300 ease-out"
 								style={{ width: `${progressValue}%` }}
 							/>
 						</div>
@@ -152,17 +168,20 @@ export function AiSuggestionsPanel() {
 					{step === "loading" && (
 						<div className="flex flex-col items-center justify-center gap-4 py-8">
 							<Loader2
-								className="size-10 animate-spin text-neutral-400"
+								className="size-10 animate-spin text-muted-foreground"
 								aria-hidden
 							/>
-							<span className="text-sm leading-relaxed text-neutral-600">
-								获取建议中…
+							<span className="text-sm leading-relaxed text-muted-foreground">
+								{t("loadingLabel")}
 							</span>
 						</div>
 					)}
 
 					{step === "space" && currentSpace && (
-						<div className="min-h-0 flex-1 overflow-y-auto py-1">
+						<div
+							ref={scrollRef}
+							className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-1"
+						>
 							<ul className="space-y-3" role="list">
 								{currentSpace.missingItems.map((item) => {
 									const key = `${currentSpace.spaceId}|${item.key}`;
@@ -171,24 +190,24 @@ export function AiSuggestionsPanel() {
 									return (
 										<li
 											key={item.key}
-											className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-neutral-100 bg-neutral-50 px-4 py-3 transition-shadow hover:shadow-sm"
+											className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-border bg-muted/50 px-4 py-3 transition-shadow hover:shadow-sm"
 										>
 											<div className="min-w-0 flex-1 text-sm">
-												<span className="font-medium text-neutral-900">{item.name}</span>
+												<span className="font-medium text-foreground">{getItemDisplayName(item)}</span>
 												{(item.needQty > 0 || item.unit) && (
-													<span className="ml-2 text-neutral-600">
-														{item.needQty > 0 && `缺 ${item.needQty}`}
+													<span className="ml-2 text-muted-foreground">
+														{item.needQty > 0 && t("needQty", { qty: item.needQty })}
 														{item.unit && ` ${item.unit}`}
 													</span>
 												)}
 											</div>
-											<div className="flex shrink-0 gap-2">
+											<div className="flex shrink-0 flex-wrap gap-2">
 												<Button
-													size="default"
+													size="sm"
 													className={
 														isAdopted
-															? "min-h-12 min-w-[80px] rounded-xl border-0 bg-neutral-200 text-neutral-600 shadow-none"
-															: "min-h-12 min-w-[80px] rounded-xl border-0 bg-neutral-900 text-white shadow-sm hover:bg-neutral-800"
+															? "min-w-[72px] rounded-lg border-0 bg-muted text-muted-foreground shadow-none"
+															: "min-w-[72px] rounded-lg border-0 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
 													}
 													disabled={isAdopted || isAdopting}
 													onClick={() => handleAdopt(currentSpace.spaceId, item)}
@@ -196,24 +215,24 @@ export function AiSuggestionsPanel() {
 													{isAdopted ? (
 														<>
 															<Check className="size-4 shrink-0" aria-hidden />
-															已采纳
+															{t("adopted")}
 														</>
 													) : isAdopting ? (
 														<>
 															<Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
-															处理中
+															{t("adopting")}
 														</>
 													) : (
-														"采纳"
+														t("adopt")
 													)}
 												</Button>
 												<Button
-													size="default"
+													size="sm"
 													variant="ghost"
-													className="min-h-12 min-w-[72px] rounded-xl text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+													className="min-w-[56px] rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
 													onClick={() => handleIgnore(currentSpace.spaceId, item)}
 												>
-													忽略
+													{t("ignore")}
 												</Button>
 											</div>
 										</li>
@@ -224,26 +243,26 @@ export function AiSuggestionsPanel() {
 					)}
 
 					{step === "done" && !error && totalSteps > 0 && (
-						<div className="rounded-xl border border-neutral-100 bg-neutral-50 px-4 py-4 text-sm leading-relaxed text-neutral-600">
-							共 {totalSteps} 个空间有推荐，采纳项已加入待办，可在「待办」中确认。
+						<div className="rounded-xl border border-border bg-muted/50 px-4 py-4 text-sm leading-relaxed text-muted-foreground">
+							{t("summary", { total: totalSteps })}
 						</div>
 					)}
 
-					<DialogFooter className="shrink-0 gap-2 border-t border-neutral-200 pt-4">
+					<DialogFooter className="shrink-0 gap-2 border-t border-border pt-4">
 						{step === "space" && (
 							<Button
 								onClick={handleNext}
-								className="min-h-12 min-w-[120px] rounded-xl bg-neutral-900 text-white hover:bg-neutral-800"
+								className="min-h-12 min-w-[120px] rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
 							>
-								{isLastSpace ? "完成" : "下一条"}
+								{isLastSpace ? t("finish") : t("nextOrDone")}
 							</Button>
 						)}
 						{step === "done" && (
 							<Button
 								onClick={handleClose}
-								className="min-h-12 min-w-[100px] rounded-xl bg-neutral-900 text-white hover:bg-neutral-800"
+								className="min-h-12 min-w-[100px] rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
 							>
-								关闭
+								{t("close")}
 							</Button>
 						)}
 					</DialogFooter>

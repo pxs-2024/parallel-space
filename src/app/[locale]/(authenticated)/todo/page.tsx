@@ -1,11 +1,16 @@
 import { getTranslations } from "next-intl/server";
 import { getAuth } from "@/features/auth/queries/get-auth";
 import { getTodoPageData } from "@/features/todo/queries/get-todo-page-data";
+import { getSpaces } from "@/features/space/queries/get-spaces";
 import { DecisionsPanel } from "@/features/todo/components/decisions-panel";
 
 const TodoPage = async () => {
   const auth = await getAuth();
-  const { pending } = await getTodoPageData(auth);
+  const [{ pending, newAssets }, spaces] = await Promise.all([
+    getTodoPageData(auth),
+    getSpaces(),
+  ]);
+  const spaceOptions = spaces.map((s) => ({ id: s.id, name: s.name }));
   const t = await getTranslations("page");
 
   return (
@@ -16,7 +21,7 @@ const TodoPage = async () => {
           <p className="text-sm text-muted-foreground mt-1">{t("todoDescription")}</p>
         </div>
         <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card/50 p-6 shadow-sm">
-          <DecisionsPanel pending={pending} />
+          <DecisionsPanel pending={pending} newAssets={newAssets} spaceOptions={spaceOptions} />
         </section>
       </div>
     </div>

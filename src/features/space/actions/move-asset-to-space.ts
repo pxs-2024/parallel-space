@@ -6,7 +6,7 @@ import { getLocale } from "next-intl/server";
 import { ActionState, toActionState, fromErrorToActionState } from "@/components/form/utils/to-action-state";
 import { spacesPath } from "@/paths";
 
-/** 将物品从当前空间移动到目标空间；移动后在新空间中位置重置为 (0,0) */
+/** 将物品从当前空间移动到目标空间 */
 export async function moveAssetToSpace(
 	assetId: string,
 	fromSpaceId: string,
@@ -40,7 +40,7 @@ export async function moveAssetToSpace(
 
 		await prisma.asset.update({
 			where: { id: assetId },
-			data: { spaceId: toSpaceId, x: 0, y: 0 },
+			data: { spaceId: toSpaceId },
 		});
 
 		const locale = await getLocale();

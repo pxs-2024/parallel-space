@@ -39,7 +39,20 @@ export async function updateSpace(
 		}
 
 		const updateData: { name?: string; description?: string; cells?: { x: number; y: number }[] } = {};
-		if (data.name !== undefined) updateData.name = data.name.trim();
+		if (data.name !== undefined) {
+			const trimmedName = data.name.trim();
+			const duplicate = await prisma.space.findFirst({
+				where: {
+					userId: auth.user.id,
+					name: trimmedName,
+					id: { not: data.spaceId },
+				},
+			});
+			if (duplicate) {
+				return toActionState("ERROR", "空间名称不能与其他空间重复", formData);
+			}
+			updateData.name = trimmedName;
+		}
 		if (data.description !== undefined) updateData.description = data.description.trim();
 		if (data.cells !== undefined) updateData.cells = data.cells;
 

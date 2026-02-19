@@ -1,4 +1,5 @@
 import type { Cell, FPState, GridMode, PointerEvt, ToolId, Viewport } from "./types";
+import type { Space } from "./types";
 import { Store } from "./store";
 import { History, Command } from "./history";
 import { HitTest } from "./hitTest";
@@ -6,9 +7,10 @@ import { screenToCell, screenToPoint } from "./camera";
 import { toolById } from "./tools";
 import type { DragState } from "./states";
 import { renderFloorPlan } from "./renderer";
-import { MAX_CANVAS_SIZE } from "../constants";
+import { MAX_CANVAS_SIZE, SIZE } from "../constants";
 import { NoneState } from "./states";
 import { ApplyEditingSpaceCmd } from "./commands";
+import { cellsToBorderSegments } from "../utils";
 export type PersistCallbacks = {
 	onCreate: (name: string, cells: any[]) => void | Promise<void>;
 	onUpdate: (spaceId: string, cells: any[]) => void | Promise<void>;
@@ -39,6 +41,7 @@ export class FloorPlanEngine {
 			editMode: initial.editMode ?? true,
 			editingSpaceId: initial.editingSpaceId ?? null,
 			editedInfoSpaceIds: initial.editedInfoSpaceIds ?? [],
+			previewSpaces: initial.previewSpaces ?? null,
 		});
 		this.hitTest.sync(initial.spaces);
 
@@ -142,6 +145,69 @@ export class FloorPlanEngine {
 
 	getEditedInfoSpaceIds(): string[] {
 		return this.store.getState().editedInfoSpaceIds;
+	}
+
+	/** 清空未使用的选区（完成时调用） */
+	clearSelectedCells() {
+		this.store.mutate((s) => ({ ...s, selectedCells: [] }));
+	}
+
+	/** 设置模版预览（悬浮模版时在画布视口中心浅色绘制，并隐藏原空间） */
+	setPreviewSpaces(spaces: FPState["previewSpaces"]) {
+		if (spaces == null || spaces.length === 0) {
+			this.store.mutate((s) => ({ ...s, previewSpaces: null }));
+			return;
+		}
+		const view = this.store.getState().view;
+		const { width, height } = this.viewport;
+		// 视口中心对应的格点坐标（世界像素 / SIZE）
+		const viewportCenterCellX = (width / 2 - view.translateX) / view.scale / SIZE;
+		const viewportCenterCellY = (height / 2 - view.translateY) / view.scale / SIZE;
+		// 模版所有格子的包围盒中心
+		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+		for (const sp of spaces) {
+			for (const c of sp.cells) {
+				minX = Math.min(minX, c.x); minY = Math.min(minY, c.y);
+				maxX = Math.max(maxX, c.x); maxY = Math.max(maxY, c.y);
+			}
+		}
+		const templateCenterX = (minX + maxX) / 2;
+		const templateCenterY = (minY + maxY) / 2;
+		const dx = Math.round(viewportCenterCellX - templateCenterX);
+		const dy = Math.round(viewportCenterCellY - templateCenterY);
+		const shifted: Space[] = spaces.map((sp) => {
+			const cells = sp.cells.map((c) => ({ x: c.x + dx, y: c.y + dy }));
+			const segs = cellsToBorderSegments(cells);
+			return { ...sp, cells, segs };
+		});
+		this.store.mutate((s) => ({ ...s, previewSpaces: shifted }));
+	}
+
+	/**
+	 * 按当前视口中心计算与预览相同的偏移，返回偏移后的空间列表（用于确认生成时在视口对应区域创建）
+	 */
+	getPreviewShiftedSpaces(spaces: { name: string; description: string; cells: Cell[] }[]): { name: string; description: string; cells: Cell[] }[] {
+		if (spaces.length === 0) return [];
+		const view = this.store.getState().view;
+		const { width, height } = this.viewport;
+		const viewportCenterCellX = (width / 2 - view.translateX) / view.scale / SIZE;
+		const viewportCenterCellY = (height / 2 - view.translateY) / view.scale / SIZE;
+		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+		for (const sp of spaces) {
+			for (const c of sp.cells) {
+				minX = Math.min(minX, c.x); minY = Math.min(minY, c.y);
+				maxX = Math.max(maxX, c.x); maxY = Math.max(maxY, c.y);
+			}
+		}
+		const templateCenterX = (minX + maxX) / 2;
+		const templateCenterY = (minY + maxY) / 2;
+		const dx = Math.round(viewportCenterCellX - templateCenterX);
+		const dy = Math.round(viewportCenterCellY - templateCenterY);
+		return spaces.map((sp) => ({
+			name: sp.name,
+			description: sp.description,
+			cells: sp.cells.map((c) => ({ x: c.x + dx, y: c.y + dy })),
+		}));
 	}
 
 	getState() {

@@ -248,7 +248,7 @@ async function seed() {
 		}
 	}
 
-	// 补几条 NEW_ASSET（OPEN），用于 AI 建议等
+	// 补几条 NEW_ASSET（OPEN/DONE），用于 AI 建议与待办
 	const firstSpace = createdSpaces[0];
 	actionRows.push({
 		spaceId: firstSpace.id,
@@ -266,12 +266,13 @@ async function seed() {
 	});
 
 	await prisma.action.createMany({
-		data: actionRows.map((a) => ({
+		data: actionRows.map((a, i) => ({
 			spaceId: a.spaceId,
 			assetId: a.assetId,
 			type: a.type,
 			status: a.status,
 			dueAt: a.dueAt,
+			...(a.type === ActionType.NEW_ASSET ? { key: `seed-new-asset-${i}` } : {}),
 		})),
 	});
 

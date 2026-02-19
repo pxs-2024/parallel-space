@@ -23,6 +23,7 @@ export async function getSpaceAssets(spaceId: string) {
 					unit: true,
 					reorderPoint: true,
 					consumeIntervalDays: true,
+					consumeAmountPerTime: true,
 					dueAt: true,
 					lastDoneAt: true,
 					nextDueAt: true,

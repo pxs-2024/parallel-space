@@ -3,10 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { Plus, Trash2, ChevronUp } from "lucide-react";
-import { ArrowRightToLine } from "lucide-react";
+import { Plus, Trash2, ChevronUp, ArrowRightToLine } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -36,6 +43,7 @@ type AssetItem = Prisma.AssetGetPayload<{
 		unit: true;
 		reorderPoint: true;
 		consumeIntervalDays: true;
+		consumeAmountPerTime: true;
 		dueAt: true;
 		lastDoneAt: true;
 		nextDueAt: true;
@@ -68,8 +76,10 @@ export function SpaceAssetsDrawer({
 	const [loading, setLoading] = useState(false);
 	const [selectedAsset, setSelectedAsset] = useState<AssetItem | null>(null);
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
+	const [pendingDeleteAssetId, setPendingDeleteAssetId] = useState<string | null>(null);
 	const drawerRef = useRef<HTMLDivElement>(null);
 	const t = useTranslations("drawer");
+	const tAsset = useTranslations("asset");
 
 	useEffect(() => {
 		if (!open || !spaceId) {
@@ -210,21 +220,23 @@ export function SpaceAssetsDrawer({
 							{assets.map((asset) => {
 								const isSelected = selectedAsset?.id === asset.id;
 								return (
-									<li key={asset.id}>
+									<li key={asset.id} className="relative">
 										<ContextMenu>
 											<ContextMenuTrigger asChild>
-												<SpaceAssetCard
-													asset={asset}
-													isSelected={isSelected}
-													onClick={() => setSelectedAsset(asset)}
-													showMoreIcon
-												/>
+												{/* 用 div 包裹卡片，确保右键 contextmenu 能正确触发（部分环境下 button 会拦截） */}
+												<div className="inline-block w-full max-w-[14rem] rounded-xl">
+													<SpaceAssetCard
+														asset={asset}
+														isSelected={isSelected}
+														onClick={() => setSelectedAsset(asset)}
+													/>
+												</div>
 											</ContextMenuTrigger>
 											<ContextMenuContent>
 												<ContextMenuSub>
 													<ContextMenuSubTrigger>
 														<ArrowRightToLine className="size-4" />
-														{t("moveTo")}
+														{tAsset("moveToOtherSpace")}
 													</ContextMenuSubTrigger>
 													<ContextMenuSubContent>
 														{otherSpaces.length === 0 ? (
@@ -244,10 +256,10 @@ export function SpaceAssetsDrawer({
 												<ContextMenuSeparator />
 												<ContextMenuItem
 													variant="destructive"
-													onClick={() => handleDeleteAsset(asset.id)}
+													onClick={() => setPendingDeleteAssetId(asset.id)}
 												>
 													<Trash2 className="size-4" />
-													{t("delete")}
+													{tAsset("deleteItem")}
 												</ContextMenuItem>
 											</ContextMenuContent>
 										</ContextMenu>
@@ -268,7 +280,7 @@ export function SpaceAssetsDrawer({
 				/>
 			)}
 
-			{spaceId && (
+			{spaceId && selectedAsset && (
 				<AssetDetailDrawer
 					asset={selectedAsset}
 					spaceId={spaceId}
@@ -282,6 +294,30 @@ export function SpaceAssetsDrawer({
 					}}
 				/>
 			)}
+
+			<Dialog open={pendingDeleteAssetId != null} onOpenChange={(open) => !open && setPendingDeleteAssetId(null)}>
+				<DialogContent className="sm:max-w-md" showCloseButton>
+					<DialogHeader>
+						<DialogTitle>{t("confirmDeleteAssetTitle")}</DialogTitle>
+						<DialogDescription>{t("confirmDeleteAssetDescription")}</DialogDescription>
+					</DialogHeader>
+					<DialogFooter className="gap-2 sm:gap-0">
+						<Button variant="outline" onClick={() => setPendingDeleteAssetId(null)}>
+							{tAsset("cancel")}
+						</Button>
+						<Button
+							variant="destructive"
+							onClick={async () => {
+								if (!pendingDeleteAssetId) return;
+								await handleDeleteAsset(pendingDeleteAssetId);
+								setPendingDeleteAssetId(null);
+							}}
+						>
+							{tAsset("deleteItem")}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</>
 	);
 }

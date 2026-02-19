@@ -25,17 +25,10 @@ export async function deleteAsset(
 			return toActionState("ERROR", "无权删除此物品", undefined);
 		}
 
-		await prisma.$transaction([
-			// 先解除对「当前未处理提示 Action」的引用，否则删除 Asset 时 cascade 删除 Action 会冲突
-			prisma.asset.update({
-				where: { id: assetId },
-				data: { openPromptActionId: null },
-			}),
-			// 硬删除物品；Action 表上 assetId 已设置 onDelete: Cascade，会连带删除
-			prisma.asset.delete({
-				where: { id: assetId },
-			}),
-		]);
+		// 硬删除物品；Action 表上 assetId 已设置 onDelete: Cascade，会连带删除
+		await prisma.asset.delete({
+			where: { id: assetId },
+		});
 
 		const locale = await getLocale();
 		revalidatePath(`/${locale}${spacesPath()}`);

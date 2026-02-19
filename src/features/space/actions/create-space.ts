@@ -10,6 +10,7 @@ import {
 	fromErrorToActionState,
 } from "@/components/form/utils/to-action-state";
 import { getAuth } from "@/features/auth/queries/get-auth";
+import { isConnected } from "@/components/floor-plan/utils";
 
 const cellSchema = z.object({ x: z.number().int(), y: z.number().int() });
 const createSpaceSchema = z.object({
@@ -30,19 +31,11 @@ export async function createSpace(
 
 		const data = createSpaceSchema.parse(Object.fromEntries(formData.entries()));
 
-		const maxOrder = await prisma.space
-			.aggregate({
-				where: { userId: auth.user.id },
-				_max: { order: true },
-			})
-			.then((r) => r._max.order ?? -1);
-
 		await prisma.space.create({
 			data: {
 				name: data.name.trim(),
 				description: (data.description ?? "").trim(),
 				userId: auth.user.id,
-				order: maxOrder + 1,
 				cells: data.cells?.length ? (data.cells as { x: number; y: number }[]) : [],
 			},
 		});
@@ -59,27 +52,21 @@ export async function createSpace(
 /** 从平面图圈选创建空间（直接传参，供 canvas 调用） */
 export async function createSpaceFromFloorPlan(
 	name: string,
-	cells: { x: number; y: number }[]
+	cells: { x: number; y: number }[],
+	description?: string
 ): Promise<{ ok: true; spaceId: string } | { ok: false; error: string }> {
 	try {
 		const auth = await getAuth();
 		if (!auth?.user?.id) return { ok: false, error: "请先登录" };
 		if (!name?.trim()) return { ok: false, error: "名称不能为空" };
 		if (!cells?.length) return { ok: false, error: "请先圈选区域" };
-
-		const maxOrder = await prisma.space
-			.aggregate({
-				where: { userId: auth.user.id },
-				_max: { order: true },
-			})
-			.then((r) => r._max.order ?? -1);
+		if (!isConnected(cells)) return { ok: false, error: "空间区域必须连通" };
 
 		const space = await prisma.space.create({
 			data: {
 				name: name.trim(),
-				description: "",
+				description: description?.trim() ?? "",
 				userId: auth.user.id,
-				order: maxOrder + 1,
 				cells: cells,
 			},
 		});

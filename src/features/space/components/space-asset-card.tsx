@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Box, Clock, MoreVertical, Package } from "lucide-react";
+import { Box, Clock, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 function daysUntilDue(nextDueAt: Date | null, dueAt: Date | null): number | null {
+	console.log("nextDueAt", nextDueAt);
+	console.log("dueAt", dueAt);
 	const due = nextDueAt ?? dueAt;
 	if (!due) return null;
 	const dueMs = new Date(due).getTime();
@@ -47,8 +49,6 @@ type SpaceAssetCardProps = {
 	onClick?: () => void;
 	/** 展示空间位置（搜索列表时传入，显示「空间 xxx」） */
 	spaceName?: string | null;
-	/** 是否显示右上角更多图标（抽屉内显示，搜索列表可隐藏） */
-	showMoreIcon?: boolean;
 	/** 搜索列表用：左右布局、占满整列 */
 	layout?: "grid" | "horizontal";
 	className?: string;
@@ -68,7 +68,6 @@ export const SpaceAssetCard = React.forwardRef<HTMLButtonElement, SpaceAssetCard
 		isSelected = false,
 		onClick,
 		spaceName,
-		showMoreIcon = true,
 		layout = "grid",
 		className,
 	},
@@ -169,12 +168,7 @@ export const SpaceAssetCard = React.forwardRef<HTMLButtonElement, SpaceAssetCard
 				<>
 					<div className="flex items-start gap-2">
 						{iconArea}
-						<div className="min-w-0 flex-1" />
-						{showMoreIcon && (
-							<span className="shrink-0 text-muted-foreground" aria-hidden>
-								<MoreVertical className="size-4" />
-							</span>
-						)}
+					<div className="min-w-0 flex-1" />
 					</div>
 					<div className="mt-1.5 min-h-0 flex-1">{titleEl}</div>
 					{secondaryEl}

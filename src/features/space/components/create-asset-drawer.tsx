@@ -1,6 +1,8 @@
 "use client";
 
 import { Fragment, useState, useActionState, useEffect } from "react";
+import { format } from "date-fns";
+import { zhCN } from "date-fns/locale";
 import {
 	Dialog,
 	DialogContent,
@@ -16,6 +18,12 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { Form } from "@/components/form/form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +31,8 @@ import { FieldError } from "@/components/form/field-error";
 import { SubmitButton } from "@/components/form/submit-button";
 import { createAsset } from "@/features/space/actions/create-asset";
 import { EMPTY_ACTION_STATE } from "@/components/form/utils/to-action-state";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // 与 schema 一致：仅 STATIC / CONSUMABLE / TEMPORAL
 enum AssetKind {
@@ -61,8 +70,10 @@ const CreateAssetDialog = ({
 		name: "",
 		description: "",
 	});
+	// 时间型物品过期时间，格式 yyyy-MM-ddTHH:mm
+	const [dueAtValue, setDueAtValue] = useState<string>("");
 
-	// 当 actionState 有错误时，恢复步骤1的数据
+	// 当 actionState 有错误时，恢复步骤1与时间型 dueAt 的数据
 	useEffect(() => {
 		if (actionState?.payload && actionState.status === "ERROR") {
 			const name = actionState.payload.get("name") as string;
@@ -72,6 +83,13 @@ const CreateAssetDialog = ({
 					name: name || "",
 					description: description || "",
 				});
+			}
+			const dueAt = actionState.payload.get("dueAt") as string | undefined;
+			if (dueAt && typeof dueAt === "string" && dueAt.trim()) {
+				const d = new Date(dueAt);
+				if (!Number.isNaN(d.getTime())) {
+					setDueAtValue(format(d, "yyyy-MM-dd") + "T" + format(d, "HH:mm"));
+				}
 			}
 		}
 	}, [actionState?.payload, actionState?.status]);
@@ -89,20 +107,17 @@ const CreateAssetDialog = ({
 	const handleOpenChange = (open: boolean) => {
 		if (!open) {
 			setStep(1);
-			setKind(AssetKind.STATIC); // 关闭时重置
-			setStep1Data({ name: "", description: "" }); // 重置
+			setKind(AssetKind.STATIC);
+			setStep1Data({ name: "", description: "" });
+			setDueAtValue("");
 		}
 		onOpenChange(open);
 	};
 
-	// 格式化日期为 datetime-local 输入格式
-	const formatDateForInput = (date: Date | string | undefined): string => {
-		if (!date) return "";
-		const d = typeof date === "string" ? new Date(date) : date;
-		return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
-			.toISOString()
-			.slice(0, 16);
-	};
+	// 日期部分用于 Calendar 的 selected
+	const dueAtDate = dueAtValue ? new Date(dueAtValue + (dueAtValue.length === 10 ? "T12:00:00" : "")) : undefined;
+	// 时间部分 HH:mm
+	const dueAtTime = dueAtValue && dueAtValue.length >= 16 ? dueAtValue.slice(11, 16) : "00:00";
 
 	// 计算总步数
 	const totalSteps = kind === AssetKind.STATIC ? 1 : 2;
@@ -305,15 +320,50 @@ const CreateAssetDialog = ({
 									<>
 										<h3 className="text-sm font-medium mb-4">时间型物品设置</h3>
 										<div className="space-y-2">
-											<Label htmlFor="dueAt">过期时间</Label>
-											<Input
-												id="dueAt"
-												name="dueAt"
-												type="datetime-local"
-												defaultValue={formatDateForInput(
-													actionState.payload?.get("dueAt") as string | undefined
-												)}
-											/>
+											<Label>过期时间</Label>
+											<div className="flex flex-wrap items-center gap-2">
+												<Popover>
+													<PopoverTrigger asChild>
+														<Button
+															type="button"
+															variant="outline"
+															className={cn(
+																"h-9 min-w-36 justify-start gap-2 pl-3 font-normal",
+																!dueAtDate && "text-muted-foreground"
+															)}
+														>
+															<CalendarIcon className="size-4 shrink-0" />
+															{dueAtDate
+																? format(dueAtDate, "yyyy-MM-dd", { locale: zhCN })
+																: "选择日期"}
+														</Button>
+													</PopoverTrigger>
+													<PopoverContent className="w-auto p-0" align="start">
+														<Calendar
+															mode="single"
+															selected={dueAtDate}
+															onSelect={(d) => {
+																if (!d) return;
+																const dateStr = format(d, "yyyy-MM-dd");
+																setDueAtValue(dueAtValue ? dateStr + "T" + dueAtTime : dateStr + "T00:00");
+															}}
+															locale={zhCN}
+															disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+														/>
+													</PopoverContent>
+												</Popover>
+												<Input
+													type="time"
+													className="h-9 w-28"
+													value={dueAtTime}
+													onChange={(e) => {
+														const t = e.target.value;
+														const datePart = dueAtValue.slice(0, 10);
+														setDueAtValue((datePart && datePart.length === 10 ? datePart : format(new Date(), "yyyy-MM-dd")) + "T" + t);
+													}}
+												/>
+											</div>
+											<input type="hidden" name="dueAt" value={dueAtValue ? (dueAtValue.length >= 16 ? dueAtValue : dueAtValue + "T00:00") : ""} />
 											<FieldError actionState={actionState} name="dueAt" />
 										</div>
 									</>

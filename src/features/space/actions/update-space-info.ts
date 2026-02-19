@@ -22,10 +22,20 @@ export async function updateSpaceInfoFromFloorPlan(
 		});
 		if (!space) return { ok: false, error: "空间不存在或无权修改" };
 
+		const trimmedName = name.trim();
+		const duplicate = await prisma.space.findFirst({
+			where: {
+				userId: auth.user.id,
+				name: trimmedName,
+				id: { not: spaceId },
+			},
+		});
+		if (duplicate) return { ok: false, error: "空间名称不能与其他空间重复" };
+
 		await prisma.space.update({
 			where: { id: spaceId },
 			data: {
-				name: name.trim(),
+				name: trimmedName,
 				description: description.trim(),
 			},
 		});

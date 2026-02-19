@@ -91,7 +91,7 @@ export async function getRecommendationsForUser(): Promise<UserRecommendationsRe
   const spaces: SpaceLite[] = await prisma.space.findMany({
     where: { userId },
     select: { id: true, name: true },
-    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+    orderBy: { createdAt: "asc" },
   });
 
   // 3) load all assets across all spaces

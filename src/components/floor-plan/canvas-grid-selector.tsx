@@ -1,16 +1,29 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { Grid3X3, MousePointer2, Shapes, Check, RotateCcw } from "lucide-react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
+import { Grid3X3, MousePointer2, Shapes, Check, RotateCcw, LayoutTemplate } from "lucide-react";
 import type { Space, ToolId, PointerEvt, Cell, GridMode } from "./engine/types";
 import { FloorPlanEngine } from "./engine/engine";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { useSpaceKeyListener } from "./hooks/useKeyDownLinstener";
 import { useInitAndResizeCanvas } from "./hooks/useInitAndResizeCanvas";
 import { InputNameDialog } from "./input-name-dialog";
 import { hitGenerate } from "./engine/hitGenerate";
 import { AddSpaceCmd } from "./engine/commands";
+import { isConnected, cellsToBorderSegments } from "./utils";
+import { popularLayouts, type FloorPlanTemplate } from "./floor-plan-templates";
 
 export type CanvasGridSelectorHandle = {
 	getSpaces: () => Space[];
@@ -20,6 +33,8 @@ export type CanvasGridSelectorHandle = {
 	getCreatedSpaceIds: () => string[];
 	/** 本次编辑中只改了名称/描述的空间 id，完成时需提交服务端 */
 	getEditedInfoSpaceIds: () => string[];
+	/** 清空未使用的选区（完成时调用） */
+	clearSelectedCells: () => void;
 };
 
 type Props = {
@@ -28,11 +43,25 @@ type Props = {
 	editMode?: boolean;
 	/** 非编辑模式（none）下点击空间时调用，用于打开对应抽屉等 */
 	onSpaceSelect?: (spaceId: string) => void;
+	/** 鼠标在画布上移动时回调：当前悬停的空间 id（无则 null）及鼠标 client 坐标 */
+	onSpaceHover?: (spaceId: string | null, clientX: number, clientY: number) => void;
+	/** 确认使用模版后：为用户创建对应空间 */
+	onApplyTemplate?: (spaces: { name: string; description: string; cells: Cell[] }[]) => Promise<void>;
+	/** 编辑模式下右键菜单删除空间 */
+	onDeleteSpace?: (spaceId: string) => Promise<void> | void;
 };
 
 export const CanvasGridSelector = forwardRef<CanvasGridSelectorHandle, Props>(
 	function CanvasGridSelector(
-		{ initialSpaces = null, persistCallbacks = null, editMode = true, onSpaceSelect },
+		{
+			initialSpaces = null,
+			persistCallbacks = null,
+			editMode = true,
+			onSpaceSelect,
+			onSpaceHover,
+			onApplyTemplate,
+			onDeleteSpace,
+		},
 		ref
 	) {
 		const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -61,6 +90,22 @@ export const CanvasGridSelector = forwardRef<CanvasGridSelectorHandle, Props>(
 		const [editInfoDesc, setEditInfoDesc] = useState("");
 		// 是否处于「编辑空间」状态（用于显示「保存图形」按钮）
 		const [editingSpaceId, setEditingSpaceIdState] = useState<string | null>(null);
+		// 模版确认弹窗（点击模版项后）
+		const [confirmTemplate, setConfirmTemplate] = useState<FloorPlanTemplate | null>(null);
+		const [templatePopoverOpen, setTemplatePopoverOpen] = useState(false);
+		const [deleteSpaceConfirmId, setDeleteSpaceConfirmId] = useState<string | null>(null);
+		const tDrawer = useTranslations("drawer");
+		const tAsset = useTranslations("asset");
+
+		const templateToPreviewSpaces = useCallback((t: FloorPlanTemplate): Space[] => {
+			return t.spaces.map((s, i) => ({
+				id: `preview-${t.id}-${i}`,
+				name: s.name,
+				description: s.description,
+				cells: s.cells,
+				segs: cellsToBorderSegments(s.cells),
+			}));
+		}, []);
 
 		const spaceKeyRef = useSpaceKeyListener();
 
@@ -77,6 +122,7 @@ export const CanvasGridSelector = forwardRef<CanvasGridSelectorHandle, Props>(
 					editMode: true,
 					editingSpaceId: null,
 					editedInfoSpaceIds: [],
+					previewSpaces: null,
 				},
 				persistCallbacks
 			);
@@ -153,6 +199,7 @@ export const CanvasGridSelector = forwardRef<CanvasGridSelectorHandle, Props>(
 				getUpdatedSpaceIds: () => engine.getUpdatedSpaceIds(),
 				getCreatedSpaceIds: () => engine.getCreatedSpaceIds(),
 				getEditedInfoSpaceIds: () => engine.getEditedInfoSpaceIds(),
+				clearSelectedCells: () => engine.clearSelectedCells(),
 			}),
 			[engine]
 		);
@@ -201,6 +248,14 @@ export const CanvasGridSelector = forwardRef<CanvasGridSelectorHandle, Props>(
 			const evt = toPointerEvt(e);
 			if (!evt) return;
 			engine.pointerMove(evt);
+			if (onSpaceHover) {
+				const hoverId = engine.getState().hoverSpaceId;
+				onSpaceHover(hoverId, e.clientX, e.clientY);
+			}
+		};
+
+		const onPointerLeave = () => {
+			if (onSpaceHover) onSpaceHover(null, 0, 0);
 		};
 
 		const onPointerUp = (e: React.PointerEvent) => {
@@ -283,6 +338,7 @@ export const CanvasGridSelector = forwardRef<CanvasGridSelectorHandle, Props>(
 		const onEditSpace = () => {
 			if (contextMenuSpaceId) {
 				engine.setEditingSpaceId(contextMenuSpaceId);
+				setTool("selectDeselect");
 				closeContextMenu();
 			}
 		};
@@ -298,6 +354,18 @@ export const CanvasGridSelector = forwardRef<CanvasGridSelectorHandle, Props>(
 			}
 			closeContextMenu();
 		};
+
+		const onDeleteSpaceClick = () => {
+			if (!contextMenuSpaceId || !onDeleteSpace) return;
+			setDeleteSpaceConfirmId(contextMenuSpaceId);
+			closeContextMenu();
+		};
+
+		const onConfirmDeleteSpace = useCallback(() => {
+			if (!deleteSpaceConfirmId || !onDeleteSpace) return;
+			onDeleteSpace(deleteSpaceConfirmId);
+			setDeleteSpaceConfirmId(null);
+		}, [deleteSpaceConfirmId, onDeleteSpace]);
 
 		const onEditInfoConfirm = () => {
 			if (!editInfoSpaceId) return;
@@ -319,21 +387,277 @@ export const CanvasGridSelector = forwardRef<CanvasGridSelectorHandle, Props>(
 						onPointerDown={onPointerDown}
 						onPointerMove={onPointerMove}
 						onPointerUp={onPointerUp}
+						onPointerLeave={onPointerLeave}
 						onWheel={onWheel}
 					/>
-					{/* 选择/取消模式下：画布右侧中间显示如何生成 space 的操作说明 */}
-					{tool === "selectDeselect" && (
+					{/* 编辑模式下：左上角当前状态提示（移动 / 选择） */}
+					{editMode && (
 						<div
-							className="pointer-events-none absolute right-4 top-1/2 z-10 w-40 -translate-y-1/2 rounded-lg bg-background/60 px-3 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm"
-							aria-hidden
+							className="absolute left-2 top-2 z-10 rounded-md border border-border bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm"
+							aria-live="polite"
 						>
-							<p className="font-medium text-foreground/80">如何生成空间</p>
-							<ul className="mt-1.5 space-y-1">
-								<li>· 左键框选：添加选区</li>
-								<li>· 中键框选：取消选区</li>
-								<li>· 框选完成后点击左侧「生成图形」创建新空间</li>
-								<li>· 或右键已有空间 → 编辑空间</li>
-							</ul>
+							{tool === "selectDeselect" ? "选择" : "移动"}
+						</div>
+					)}
+					{/* 编辑模式下：操作按钮悬浮在画布右侧中间 */}
+					{editMode && (
+						<div className="absolute right-2 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-2 rounded-l-md border border-r-0 border-border bg-background/90 px-2 py-3 shadow-sm backdrop-blur-sm">
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="inline-flex size-9 items-center justify-center">
+										<Button
+											size="icon"
+											variant={gridMode === "full" ? "default" : "outline"}
+											className="h-9 w-9"
+											onClick={() => setGridMode((m) => (m === "full" ? "none" : "full"))}
+											aria-label={gridMode === "full" ? "隐藏网格" : "显示网格"}
+										>
+											<Grid3X3 className="size-4" />
+										</Button>
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="left" className="max-w-56">
+									<div>
+										<p className="font-medium">{gridMode === "full" ? "隐藏网格" : "显示网格"}</p>
+										<p className="mt-0.5 text-muted-foreground">
+											{gridMode === "full"
+												? "切换后画布不再显示网格线，便于查看空间轮廓。"
+												: "在画布上显示网格线，便于对齐与绘制空间。"}
+										</p>
+									</div>
+								</TooltipContent>
+							</Tooltip>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="inline-flex size-9 items-center justify-center">
+										<Button
+											size="icon"
+											variant={tool === "selectDeselect" ? "default" : "outline"}
+											className="h-9 w-9"
+											onClick={() =>
+												setTool((t) => (t === "selectDeselect" ? "editDefault" : "selectDeselect"))
+											}
+											aria-label="选择/取消"
+										>
+											<MousePointer2 className="size-4" />
+										</Button>
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="left" className="max-w-56">
+									<div>
+										<p className="font-medium">选择/取消</p>
+										<p className="mt-0.5 text-muted-foreground">
+											左键框选添加选区、中键框选取消选区，用于编辑空间形状或为「生成图形」圈定范围。
+										</p>
+									</div>
+								</TooltipContent>
+							</Tooltip>
+							{editingSpaceId == null && (
+								<>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<span className="inline-flex size-9 items-center justify-center">
+												<Button
+													size="icon"
+													variant="outline"
+													className="h-9 w-9"
+													onClick={onGenerateClick}
+													aria-label="生成图形"
+												>
+													<Shapes className="size-4" />
+												</Button>
+											</span>
+										</TooltipTrigger>
+										<TooltipContent side="left" className="max-w-56">
+											<div>
+												<p className="font-medium">生成图形</p>
+												<p className="mt-0.5 text-muted-foreground">
+													将当前框选的选区转为新空间，需输入名称与描述。
+												</p>
+											</div>
+										</TooltipContent>
+									</Tooltip>
+									<Popover
+										open={templatePopoverOpen}
+										onOpenChange={(open) => {
+											setTemplatePopoverOpen(open);
+											if (!open) engine.setPreviewSpaces(null);
+										}}
+									>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<PopoverTrigger asChild>
+													<span className="inline-flex size-9 items-center justify-center">
+														<Button
+															size="icon"
+															variant="outline"
+															className="h-9 w-9"
+															aria-label="使用模版"
+														>
+															<LayoutTemplate className="size-4" />
+														</Button>
+													</span>
+												</PopoverTrigger>
+											</TooltipTrigger>
+											<TooltipContent side="left" className="max-w-56">
+												<div>
+													<p className="font-medium">使用模版</p>
+													<p className="mt-0.5 text-muted-foreground">
+														选择户型模版，悬浮可预览，确认后一键生成空间。
+													</p>
+												</div>
+											</TooltipContent>
+										</Tooltip>
+										<PopoverContent side="left" className="w-64 p-0" align="end">
+											<div className="max-h-72 overflow-y-auto">
+												{popularLayouts.map((t) => (
+													<button
+														key={t.id}
+														type="button"
+														className="flex w-full flex-col gap-0.5 border-b border-border px-3 py-2.5 text-left last:border-b-0 hover:bg-muted/60"
+														onMouseEnter={() => engine.setPreviewSpaces(templateToPreviewSpaces(t))}
+														onMouseLeave={() => engine.setPreviewSpaces(null)}
+														onClick={() => {
+															setConfirmTemplate(t);
+															setTemplatePopoverOpen(false);
+														}}
+													>
+														<span className="font-medium text-foreground">{t.title}</span>
+														<span className="text-xs text-muted-foreground">
+															{t.area}㎡ · {t.spaces.length} 个空间
+														</span>
+													</button>
+												))}
+											</div>
+										</PopoverContent>
+									</Popover>
+								</>
+							)}
+							{editingSpaceId != null && (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<span className="inline-flex size-9 items-center justify-center">
+											<Button
+												size="icon"
+												variant="default"
+												className="h-9 w-9"
+												onClick={() => {
+													const st = engine.getState();
+													const cells = st.selectedCells;
+													if (cells.length > 0 && !isConnected(cells)) {
+														toast.error("空间区域必须连通");
+														return;
+													}
+													engine.applyEditingSpace();
+												}}
+												aria-label="保存图形"
+											>
+												<Check className="size-4" />
+											</Button>
+										</span>
+									</TooltipTrigger>
+									<TooltipContent side="left" className="max-w-56">
+										<div>
+											<p className="font-medium">保存图形</p>
+											<p className="mt-0.5 text-muted-foreground">
+												将当前编辑中的空间形状确认保存并退出编辑。
+											</p>
+										</div>
+									</TooltipContent>
+								</Tooltip>
+							)}
+							{error && (
+								<p
+									className="text-xs text-destructive text-center wrap-break-word w-full"
+									role="alert"
+								>
+									{error}
+								</p>
+							)}
+							<InputNameDialog
+								open={dialogOpen}
+								onOpenChange={(open) => {
+									setDialogOpen(open);
+									if (!open) setPendingCells(null);
+								}}
+								name={dialogName}
+								onNameChange={setDialogName}
+								description={dialogDesc}
+								onDescriptionChange={setDialogDesc}
+								onConfirm={onDialogConfirm}
+							/>
+							<InputNameDialog
+								open={editInfoOpen}
+								onOpenChange={(open) => {
+									setEditInfoOpen(open);
+									if (!open) setEditInfoSpaceId(null);
+								}}
+								title="编辑信息"
+								name={editInfoName}
+								onNameChange={setEditInfoName}
+								description={editInfoDesc}
+								onDescriptionChange={setEditInfoDesc}
+								onConfirm={onEditInfoConfirm}
+							/>
+							<Dialog
+								open={confirmTemplate != null}
+								onOpenChange={(open) => {
+									if (!open) setConfirmTemplate(null);
+								}}
+							>
+								<DialogContent showCloseButton>
+									<DialogHeader>
+										<DialogTitle>确认使用模版？</DialogTitle>
+										<DialogDescription>
+											{confirmTemplate
+												? `将创建 ${confirmTemplate.spaces.length} 个空间：${confirmTemplate.spaces.map((s) => s.name).join("、")}`
+												: ""}
+										</DialogDescription>
+									</DialogHeader>
+									<DialogFooter>
+										<Button
+											variant="outline"
+											onClick={() => setConfirmTemplate(null)}
+										>
+											取消
+										</Button>
+										<Button
+											onClick={async () => {
+												if (!confirmTemplate || !onApplyTemplate) return;
+												const shifted = engine.getPreviewShiftedSpaces(confirmTemplate.spaces);
+												await onApplyTemplate(shifted);
+												setConfirmTemplate(null);
+												toast.success(`已使用模版「${confirmTemplate.title}」，创建 ${confirmTemplate.spaces.length} 个空间`);
+											}}
+										>
+											确认
+										</Button>
+									</DialogFooter>
+								</DialogContent>
+							</Dialog>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="inline-flex size-9 items-center justify-center">
+										<Button
+											size="icon"
+											variant={tool === "cleanSegments" ? "default" : "outline"}
+											className="h-9 w-9"
+											onClick={() => engine.resetView()}
+											aria-label="重置视图"
+										>
+											<RotateCcw className="size-4" />
+										</Button>
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="left" className="max-w-56">
+									<div>
+										<p className="font-medium">重置视图</p>
+										<p className="mt-0.5 text-muted-foreground">
+											将画布缩放与平移恢复为默认，便于重新浏览。
+										</p>
+									</div>
+								</TooltipContent>
+							</Tooltip>
 						</div>
 					)}
 				</div>
@@ -358,166 +682,32 @@ export const CanvasGridSelector = forwardRef<CanvasGridSelectorHandle, Props>(
 						>
 							编辑信息
 						</button>
+						<button
+							type="button"
+							className="flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm text-destructive outline-none hover:bg-destructive/10 hover:text-destructive"
+							onClick={onDeleteSpaceClick}
+						>
+							删除空间
+						</button>
 					</div>
 				)}
-				{editMode && (
-					<div className="flex flex-col gap-2 border-l border-border bg-muted/30 px-2 py-3 shrink-0 w-12 items-center">
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<span className="inline-flex size-9 items-center justify-center">
-									<Button
-										size="icon"
-										variant={gridMode === "full" ? "default" : "outline"}
-										className="h-9 w-9"
-										onClick={() => setGridMode((m) => (m === "full" ? "none" : "full"))}
-										aria-label={gridMode === "full" ? "隐藏网格" : "显示网格"}
-									>
-										<Grid3X3 className="size-4" />
-									</Button>
-								</span>
-							</TooltipTrigger>
-							<TooltipContent side="left" className="max-w-56">
-								<div>
-									<p className="font-medium">{gridMode === "full" ? "隐藏网格" : "显示网格"}</p>
-									<p className="mt-0.5 text-muted-foreground">
-										{gridMode === "full"
-											? "切换后画布不再显示网格线，便于查看空间轮廓。"
-											: "在画布上显示网格线，便于对齐与绘制空间。"}
-									</p>
-								</div>
-							</TooltipContent>
-						</Tooltip>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<span className="inline-flex size-9 items-center justify-center">
-									<Button
-										size="icon"
-										variant={tool === "selectDeselect" ? "default" : "outline"}
-										className="h-9 w-9"
-										onClick={() =>
-											setTool((t) => (t === "selectDeselect" ? "editDefault" : "selectDeselect"))
-										}
-										aria-label="选择/取消"
-									>
-										<MousePointer2 className="size-4" />
-									</Button>
-								</span>
-							</TooltipTrigger>
-							<TooltipContent side="left" className="max-w-56">
-								<div>
-									<p className="font-medium">选择/取消</p>
-									<p className="mt-0.5 text-muted-foreground">
-										左键框选添加选区、中键框选取消选区，用于编辑空间形状或为「生成图形」圈定范围。
-									</p>
-								</div>
-							</TooltipContent>
-						</Tooltip>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<span className="inline-flex size-9 items-center justify-center">
-									<Button
-										size="icon"
-										variant="outline"
-										className="h-9 w-9"
-										onClick={onGenerateClick}
-										aria-label="生成图形"
-									>
-										<Shapes className="size-4" />
-									</Button>
-								</span>
-							</TooltipTrigger>
-							<TooltipContent side="left" className="max-w-56">
-								<div>
-									<p className="font-medium">生成图形</p>
-									<p className="mt-0.5 text-muted-foreground">
-										将当前框选的选区转为新空间，需输入名称与描述。
-									</p>
-								</div>
-							</TooltipContent>
-						</Tooltip>
-						{editingSpaceId != null && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="inline-flex size-9 items-center justify-center">
-										<Button
-											size="icon"
-											variant="default"
-											className="h-9 w-9"
-											onClick={() => engine.applyEditingSpace()}
-											aria-label="保存图形"
-										>
-											<Check className="size-4" />
-										</Button>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent side="left" className="max-w-56">
-									<div>
-										<p className="font-medium">保存图形</p>
-										<p className="mt-0.5 text-muted-foreground">
-											将当前编辑中的空间形状确认保存并退出编辑。
-										</p>
-									</div>
-								</TooltipContent>
-							</Tooltip>
-						)}
-						{error && (
-							<p
-								className="text-xs text-destructive text-center wrap-break-word w-full"
-								role="alert"
-							>
-								{error}
-							</p>
-						)}
-						<InputNameDialog
-							open={dialogOpen}
-							onOpenChange={(open) => {
-								setDialogOpen(open);
-								if (!open) setPendingCells(null);
-							}}
-							name={dialogName}
-							onNameChange={setDialogName}
-							description={dialogDesc}
-							onDescriptionChange={setDialogDesc}
-							onConfirm={onDialogConfirm}
-						/>
-						<InputNameDialog
-							open={editInfoOpen}
-							onOpenChange={(open) => {
-								setEditInfoOpen(open);
-								if (!open) setEditInfoSpaceId(null);
-							}}
-							title="编辑信息"
-							name={editInfoName}
-							onNameChange={setEditInfoName}
-							description={editInfoDesc}
-							onDescriptionChange={setEditInfoDesc}
-							onConfirm={onEditInfoConfirm}
-						/>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<span className="inline-flex size-9 items-center justify-center">
-									<Button
-										size="icon"
-										variant={tool === "cleanSegments" ? "default" : "outline"}
-										className="h-9 w-9"
-										onClick={() => engine.resetView()}
-										aria-label="重置视图"
-									>
-										<RotateCcw className="size-4" />
-									</Button>
-								</span>
-							</TooltipTrigger>
-							<TooltipContent side="left" className="max-w-56">
-								<div>
-									<p className="font-medium">重置视图</p>
-									<p className="mt-0.5 text-muted-foreground">
-										将画布缩放与平移恢复为默认，便于重新浏览。
-									</p>
-								</div>
-							</TooltipContent>
-						</Tooltip>
-					</div>
-				)}
+
+				<Dialog open={deleteSpaceConfirmId != null} onOpenChange={(open) => !open && setDeleteSpaceConfirmId(null)}>
+					<DialogContent className="sm:max-w-md" showCloseButton>
+						<DialogHeader>
+							<DialogTitle>{tDrawer("confirmDeleteSpaceTitle")}</DialogTitle>
+							<DialogDescription>{tDrawer("confirmDeleteSpaceDescription")}</DialogDescription>
+						</DialogHeader>
+						<DialogFooter className="gap-2 sm:gap-0">
+							<Button variant="outline" onClick={() => setDeleteSpaceConfirmId(null)}>
+								{tAsset("cancel")}
+							</Button>
+							<Button variant="destructive" onClick={onConfirmDeleteSpace}>
+								{tDrawer("confirmDeleteSpaceConfirm")}
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
 			</div>
 		);
 	}

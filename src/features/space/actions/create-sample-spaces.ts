@@ -71,11 +71,10 @@ export async function createSampleSpaces(): Promise<
 		];
 
 		await prisma.space.createMany({
-			data: spaces.map((s, i) => ({
+			data: spaces.map((s) => ({
 				name: s.name,
 				description: s.description,
 				userId,
-				order: i,
 				cells: s.cells,
 			})),
 		});

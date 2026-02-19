@@ -34,6 +34,8 @@ export type FPState = {
   editingSpaceId: string | null;
   /** 编辑过名称/描述的空间 id 列表，完成时提交服务端 */
   editedInfoSpaceIds: string[];
+  /** 模版悬浮预览：在画布上以浅色绘制，不参与交互 */
+  previewSpaces: Space[] | null;
 };
 
 export type PointerEvt = {

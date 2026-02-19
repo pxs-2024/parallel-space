@@ -3,7 +3,10 @@
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { useRouter } from "@/i18n/navigation";
-import { completeAction } from "@/features/todo/actions/respond-to-action";
+import {
+	completeAction,
+	completeNewAssetAction,
+} from "@/features/todo/actions/respond-to-action";
 import { getDecisionItemKey } from "./types";
 import type { DecisionItem } from "./types";
 
@@ -56,5 +59,23 @@ export function useDecisionCardActions(item: DecisionItem, onRemoving?: (key: st
 		[onSuccess]
 	);
 
-	return { busy, exiting, handleRestock, handlePostpone };
+	const handlePurchased = useCallback(
+		async (actionId: string, spaceId: string) => {
+			setBusy(true);
+			try {
+				const res = await completeNewAssetAction(actionId, spaceId);
+				if (res.ok) {
+					toast.success("已放入空间");
+					onSuccess();
+				} else if (res.error) {
+					toast.error(res.error);
+				}
+			} finally {
+				setBusy(false);
+			}
+		},
+		[onSuccess]
+	);
+
+	return { busy, exiting, handleRestock, handlePostpone, handlePurchased };
 }

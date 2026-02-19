@@ -11,6 +11,7 @@ const assetSelect = {
 	unit: true,
 	reorderPoint: true,
 	consumeIntervalDays: true,
+	consumeAmountPerTime: true,
 	dueAt: true,
 	lastDoneAt: true,
 	nextDueAt: true,

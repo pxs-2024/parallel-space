@@ -2,6 +2,14 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import type { DecisionItem } from "./types";
 import { TypeBadge } from "./decision-type-badge";
 import { useDecisionCardActions } from "./use-decision-card-actions";
@@ -22,18 +30,106 @@ function daysFromNow(dueAt: Date | null): number | null {
 export type DecisionCardProps = {
 	item: DecisionItem;
 	onRemoving?: (key: string) => void;
+	/** 新增物品类待办完成时选择空间，由待办页传入 */
+	spaceOptions?: { id: string; name: string }[];
 };
 
-export function DecisionCard({ item, onRemoving }: DecisionCardProps) {
+export function DecisionCard({ item, onRemoving, spaceOptions = [] }: DecisionCardProps) {
 	const a = item.data;
-	const { busy, exiting, handleRestock, handlePostpone } = useDecisionCardActions(item, onRemoving);
+	const { busy, exiting, handleRestock, handlePostpone, handlePurchased } =
+		useDecisionCardActions(item, onRemoving);
 
 	const [showPostponePicker, setShowPostponePicker] = useState(false);
 	const [postponeDate, setPostponeDate] = useState("");
 	const [showRestockInput, setShowRestockInput] = useState(false);
 	const [restockAmount, setRestockAmount] = useState("");
+	const [showSpacePicker, setShowSpacePicker] = useState(false);
+	const [selectedSpaceId, setSelectedSpaceId] = useState("");
 
-	const days = useMemo(() => daysFromNow(a.dueAt), [a.dueAt]);
+	// 新增物品：待采购，买好后选空间入库
+	if (item.kind === "newAsset") {
+		const name = a.name;
+		const needText =
+			a.needQty > 0
+				? a.unit
+					? `需要 ${a.needQty} ${a.unit}`
+					: `需要 ${a.needQty} 份`
+				: "";
+		return (
+			<article
+				className={cn(
+					"flex w-full flex-row flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm transition-all duration-300 ease-out",
+					exiting && "pointer-events-none scale-[0.98] opacity-0"
+				)}
+			>
+				<TypeBadge item={item} />
+				<div className="min-w-0 flex-1 shrink-0 basis-0">
+					<div className="font-medium text-foreground">
+						记得买 {name}
+						{needText && (
+							<span className="ml-1.5 text-muted-foreground font-normal">
+								（{needText}）
+							</span>
+						)}
+					</div>
+					<div className="text-sm text-muted-foreground">
+						买好后点「已购买」，选一下放在哪个空间即可。
+					</div>
+				</div>
+				<div className="flex flex-wrap items-center gap-2">
+					{showSpacePicker ? (
+						<>
+							<Select
+								value={selectedSpaceId}
+								onValueChange={setSelectedSpaceId}
+								disabled={busy || spaceOptions.length === 0}
+							>
+								<SelectTrigger className="w-[180px]">
+									<SelectValue placeholder="选择空间" />
+								</SelectTrigger>
+								<SelectContent>
+									{spaceOptions.map((s) => (
+										<SelectItem key={s.id} value={s.id}>
+											{s.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<Button
+								size="sm"
+								disabled={busy || !selectedSpaceId}
+								onClick={() => {
+									if (selectedSpaceId) handlePurchased(a.id, selectedSpaceId);
+								}}
+							>
+								{busy ? "处理中…" : "确定"}
+							</Button>
+							<Button
+								size="sm"
+								variant="ghost"
+								onClick={() => {
+									setShowSpacePicker(false);
+									setSelectedSpaceId("");
+								}}
+							>
+								取消
+							</Button>
+						</>
+					) : (
+						<Button
+							size="sm"
+							disabled={busy}
+							onClick={() => setShowSpacePicker(true)}
+						>
+							已购买
+						</Button>
+					)}
+				</div>
+			</article>
+		);
+	}
+
+	const days = useMemo(() => daysFromNow((a as { dueAt: Date | null }).dueAt), [(a as { dueAt: Date | null }).dueAt]);
 
 	const handlePostponeSubmit = useCallback(() => {
 		if (!postponeDate.trim()) return;
