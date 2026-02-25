@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getAuth } from "@/features/auth/queries/get-auth";
 import type { AssetWithSpace } from "./get-all-spaces-assets";
+import { getSpaces } from "./get-spaces";
 
 const DEFAULT_SPACE_NAME = "我的空间";
 const DEFAULT_SPACE_DESCRIPTION = "默认空间";

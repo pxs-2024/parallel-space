@@ -69,7 +69,8 @@ export function AiSuggestionsPanel() {
 	}, []);
 
 	const getItemDisplayName = useCallback(
-		(item: SpaceMissingItem) => tCatalog("item." + item.key) || item.name,
+		(item: SpaceMissingItem) =>
+			(tCatalog as (key: string) => string)("item." + item.key) || item.name,
 		[tCatalog]
 	);
 
