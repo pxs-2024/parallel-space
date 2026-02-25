@@ -1,24 +1,8 @@
-import { useState } from "react";
-import { getAuth } from "../queries/get-auth";
-import { usePathname } from "next/navigation";
-import { useEffect } from "react";
-import { UserPublic } from "@/lib/auth/types";
+import { useAuthContext } from "../context/auth-provider";
 
-const useAuth = () => {
-	const [user, setUser] = useState<UserPublic | null>(null);
-	const [isFetched, setIsFetched] = useState(false);
-
-	const pathName = usePathname();
-
-	useEffect(() => {
-		const fetchUser = async () => {
-			const auth = await getAuth();
-			setUser(auth ? auth.user : null);
-			setIsFetched(true);
-		};
-		fetchUser();
-	}, [pathName]);
-	return { user, isFetched };
-};
+/**
+ * 当前用户信息，由根 layout 服务端 getAuth() 注入 AuthProvider，不再在客户端按路由重复请求。
+ */
+const useAuth = () => useAuthContext();
 
 export { useAuth };

@@ -15,6 +15,8 @@ import { routing } from "@/i18n/routing";
 import { notFound } from "next/navigation";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import localFont from "next/font/local";
+import { getAuth } from "@/features/auth/queries/get-auth";
+import { AuthProvider } from "@/features/auth/context/auth-provider";
 
 const geelyDesign = localFont({
 	src: "../../../public/fonts/GeelyDesignType-B.ttf",
@@ -50,14 +52,17 @@ export default async function RootLayout({
 	}
 	// 设置请求的 locale，这样 getRequestConfig 中的 requestLocale 就能正确获取
 	setRequestLocale(locale);
-	
-	const messages = await getMessages({locale});
+
+	const messages = await getMessages({ locale });
+	const auth = await getAuth();
+	const initialUser = auth?.user ?? null;
 
 	return (
 		<html lang={locale} suppressHydrationWarning>
 			<body className={`${geistSans.variable} ${geistMono.variable} ${geelyDesign.variable} antialiased flex h-screen flex-col overflow-hidden bg-transparent`}>
 				<NuqsAdapter>
 					<ThemeProvider>
+						<AuthProvider initialUser={initialUser}>
 						<TooltipProvider delayDuration={300}>
 						<LocalMessageProvider locale={locale} messages={messages}>
 						<PixelCanvasBackground
@@ -86,6 +91,7 @@ export default async function RootLayout({
 						<Toaster expand />
 						</LocalMessageProvider>
 						</TooltipProvider>
+						</AuthProvider>
 					</ThemeProvider>
 				</NuqsAdapter>
 			</body>

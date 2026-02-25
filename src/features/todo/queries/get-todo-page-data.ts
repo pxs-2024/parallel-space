@@ -29,7 +29,7 @@ export type PendingNewAssetItem = {
 };
 
 /**
- * 待办页数据：拉取 OPEN 的 RESTOCK（有 asset）和 NEW_ASSET（无 asset），按时间倒序。
+ * 待办页数据：一次查询拉取 OPEN 的 RESTOCK（有 asset）与 NEW_ASSET，按时间倒序。
  */
 export const getTodoPageData = async (
 	auth: Awaited<ReturnType<typeof getAuth>>
@@ -37,13 +37,11 @@ export const getTodoPageData = async (
 	if (!auth) return { pending: [], newAssets: [] };
 	const userId = auth.user.id;
 
-	// 顺序查询避免连接池同时占用两个连接导致 timeout
-	const restockActions = await prisma.action.findMany({
+	const actions = await prisma.action.findMany({
 		where: {
 			space: { userId },
 			status: "OPEN",
-			type: "RESTOCK",
-			assetId: { not: null },
+			type: { in: ["RESTOCK", "NEW_ASSET"] },
 		},
 		include: {
 			space: { select: { name: true } },
@@ -59,17 +57,15 @@ export const getTodoPageData = async (
 		},
 		orderBy: { createdAt: "desc" },
 	});
-	const newAssetActions = await prisma.action.findMany({
-		where: {
-			space: { userId },
-			status: "OPEN",
-			type: "NEW_ASSET",
-		},
-		include: {
-			space: { select: { name: true } },
-		},
-		orderBy: { createdAt: "desc" },
-	});
+
+	const restockActions = actions.filter(
+		(a): a is typeof a & { asset: NonNullable<typeof a.asset> } =>
+			a.type === "RESTOCK" &&
+			a.assetId != null &&
+			a.asset != null &&
+			(a.asset.kind === "CONSUMABLE" || a.asset.kind === "TEMPORAL")
+	);
+	const newAssetActions = actions.filter((a) => a.type === "NEW_ASSET");
 
 	const pending: PendingRestockItem[] = restockActions
 		.filter((a) => a.asset && (a.asset.kind === "CONSUMABLE" || a.asset.kind === "TEMPORAL"))
