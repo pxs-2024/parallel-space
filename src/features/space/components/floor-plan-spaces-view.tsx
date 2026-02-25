@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { Search } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import {
 	CanvasGridSelector,
 	type CanvasGridSelectorHandle,
@@ -54,6 +54,7 @@ export function FloorPlanSpacesView({ spaces: serverSpaces, allAssets }: FloorPl
 	const [focusAssetId, setFocusAssetId] = useState<string | null>(null);
 	const [searchPanelOpen, setSearchPanelOpen] = useState(false);
 	const [editMode, setEditMode] = useState(false);
+	const [finishEditLoading, setFinishEditLoading] = useState(false);
 	const [spaceHover, setSpaceHover] = useState<{
 		spaceId: string;
 		x: number;
@@ -138,31 +139,36 @@ export function FloorPlanSpacesView({ spaces: serverSpaces, allAssets }: FloorPl
 	}, []);
 
 	const onFinishEdit = useCallback(async () => {
-		const updatedIds = canvasRef.current?.getUpdatedSpaceIds() ?? [];
-		const createdIds = canvasRef.current?.getCreatedSpaceIds() ?? [];
-		const editedInfoIds = canvasRef.current?.getEditedInfoSpaceIds() ?? [];
-		const spaces = canvasRef.current?.getSpaces() ?? [];
-		const spaceMap = new Map(spaces.map((s) => [s.id, s]));
-		await Promise.all([
-			...updatedIds
-				.filter((id) => spaceMap.has(id) && existingSpaceIds.has(id))
-				.map((id) => onUpdate(id, spaceMap.get(id)!.cells)),
-			...createdIds
-				.filter((id) => spaceMap.has(id) && !existingSpaceIds.has(id))
-				.map((id) => {
-					const space = spaceMap.get(id)!;
-					return onCreate(space.name, space.cells);
-				}),
-			...editedInfoIds
-				.filter((id) => spaceMap.has(id) && existingSpaceIds.has(id))
-				.map((id) => {
-					const space = spaceMap.get(id)!;
-					return updateSpaceInfoFromFloorPlan(id, space.name, space.description ?? "");
-				}),
-		]);
-		canvasRef.current?.clearSelectedCells?.();
-		router.refresh();
-		setEditMode(false);
+		setFinishEditLoading(true);
+		try {
+			const updatedIds = canvasRef.current?.getUpdatedSpaceIds() ?? [];
+			const createdIds = canvasRef.current?.getCreatedSpaceIds() ?? [];
+			const editedInfoIds = canvasRef.current?.getEditedInfoSpaceIds() ?? [];
+			const spaces = canvasRef.current?.getSpaces() ?? [];
+			const spaceMap = new Map(spaces.map((s) => [s.id, s]));
+			await Promise.all([
+				...updatedIds
+					.filter((id) => spaceMap.has(id) && existingSpaceIds.has(id))
+					.map((id) => onUpdate(id, spaceMap.get(id)!.cells)),
+				...createdIds
+					.filter((id) => spaceMap.has(id) && !existingSpaceIds.has(id))
+					.map((id) => {
+						const space = spaceMap.get(id)!;
+						return onCreate(space.name, space.cells);
+					}),
+				...editedInfoIds
+					.filter((id) => spaceMap.has(id) && existingSpaceIds.has(id))
+					.map((id) => {
+						const space = spaceMap.get(id)!;
+						return updateSpaceInfoFromFloorPlan(id, space.name, space.description ?? "");
+					}),
+			]);
+			canvasRef.current?.clearSelectedCells?.();
+			router.refresh();
+			setEditMode(false);
+		} finally {
+			setFinishEditLoading(false);
+		}
 	}, [existingSpaceIds, onCreate, onUpdate, router]);
 
 	const handleDeleteSpace = useCallback(
@@ -202,10 +208,17 @@ export function FloorPlanSpacesView({ spaces: serverSpaces, allAssets }: FloorPl
 					type="button"
 					variant={editMode ? "default" : "outline"}
 					size="sm"
+					disabled={finishEditLoading}
 					onClick={() => (editMode ? onFinishEdit() : setEditMode(true))}
 					className="absolute top-3 right-14 z-10 min-w-18 shadow-sm"
 				>
-					{editMode ? "完成" : "编辑"}
+					{editMode && finishEditLoading ? (
+						<Loader2 className="size-4 animate-spin" aria-hidden aria-label="保存中" />
+					) : editMode ? (
+						"完成"
+					) : (
+						"编辑"
+					)}
 				</Button>
 				<Button
 					type="button"
