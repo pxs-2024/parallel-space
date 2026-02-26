@@ -239,6 +239,32 @@ const CreateAssetDialog = ({
 									</Select>
 									<FieldError actionState={actionState} name="kind" />
 								</div>
+
+								{kind === AssetKind.STATIC && (
+									<>
+										<div className="space-y-2">
+											<Label htmlFor="quantity">数量</Label>
+											<Input
+												id="quantity"
+												name="quantity"
+												type="number"
+												min={1}
+												placeholder="1"
+												defaultValue="1"
+											/>
+											<FieldError actionState={actionState} name="quantity" />
+										</div>
+										<div className="space-y-2">
+											<Label htmlFor="unit">单位</Label>
+											<Input
+												id="unit"
+												name="unit"
+												placeholder="如：个、件、把（可选）"
+											/>
+											<FieldError actionState={actionState} name="unit" />
+										</div>
+									</>
+								)}
 							</div>
 						) : (
 							// 步骤2时，隐藏步骤1的字段但保留在表单中

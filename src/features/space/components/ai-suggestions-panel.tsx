@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Sparkles } from "lucide-react";
 import {
 	Dialog,
 	DialogContent,
@@ -13,13 +13,23 @@ import {
 	DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { loadRecommendations } from "../actions/load-recommendations";
+import { streamRecommendations, type StreamEvent } from "../actions/stream-recommendations";
 import { createNewAssetTodoAction } from "../actions/accept-ai-suggestion";
-import type { UserRecommendationsResult } from "@/app/api/recommendations/route";
 import type { SpaceMissingItem } from "@/app/api/recommendations/route";
 
-type Step = "loading" | "space" | "done";
+type StreamBlock = {
+	spaceId: string;
+	spaceName: string;
+	fullText: string;
+	displayedLength: number;
+	missingItems: SpaceMissingItem[];
+	spaceEnd: boolean;
+};
+
 type AdoptedSet = Set<string>;
+type IgnoredSet = Set<string>;
+
+const TYPING_INTERVAL_MS = 28;
 
 export function AiSuggestionsPanel() {
 	const t = useTranslations("aiSuggestions");
@@ -27,54 +37,118 @@ export function AiSuggestionsPanel() {
 	const [open, setOpen] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [result, setResult] = useState<UserRecommendationsResult | null>(null);
-	const [stepIndex, setStepIndex] = useState(0);
+	const [blocks, setBlocks] = useState<StreamBlock[]>([]);
+	const [progressText, setProgressText] = useState(""); // 准备阶段的流式进度（避免长时间白屏）
+	const [streamDone, setStreamDone] = useState(false);
 	const [adopted, setAdopted] = useState<AdoptedSet>(new Set());
+	const [ignored, setIgnored] = useState<IgnoredSet>(new Set());
 	const [adoptingKey, setAdoptingKey] = useState<string | null>(null);
+	/** 点击「采纳」后打开的独立弹窗：该空间的建议列表 */
+	const [adoptDialogBlock, setAdoptDialogBlock] = useState<StreamBlock | null>(null);
 	const scrollRef = useRef<HTMLDivElement>(null);
+	const streamAbortRef = useRef<AbortController | null>(null);
+	const hasReceivedSpaceStartRef = useRef(false);
 
-	const spacesWithMissing = result
-		? result.spaces.filter((s) => s.missingItems.length > 0)
-		: [];
-	const totalSteps = spacesWithMissing.length;
-	const isLastSpace = totalSteps > 0 && stepIndex >= totalSteps - 1;
-	const currentSpace = totalSteps > 0 && stepIndex < totalSteps ? spacesWithMissing[stepIndex] : null;
-	const step: Step = loading ? "loading" : totalSteps === 0 || stepIndex >= totalSteps ? "done" : "space";
-	const progressValue = totalSteps > 0 ? ((stepIndex + (step === "space" ? 1 : 0)) / totalSteps) * 100 : 100;
-
-	// 切换推荐页时滚动区域回到顶部
+	// 打字机效果：对每个 block 的 displayedLength 追赶 fullText.length
 	useEffect(() => {
-		if (scrollRef.current) {
-			scrollRef.current.scrollTop = 0;
-		}
-	}, [stepIndex]);
+		const hasCatchUp = blocks.some((b) => b.displayedLength < b.fullText.length);
+		if (!hasCatchUp) return;
+
+		const id = setInterval(() => {
+			setBlocks((prev) => {
+				let changed = false;
+				const next = prev.map((b) => {
+					if (b.displayedLength >= b.fullText.length) return b;
+					changed = true;
+					const step = 1;
+					return { ...b, displayedLength: Math.min(b.displayedLength + step, b.fullText.length) };
+				});
+				return changed ? next : prev;
+			});
+		}, TYPING_INTERVAL_MS);
+		return () => clearInterval(id);
+	}, [blocks]);
+
+	// 新内容时滚动到底部
+	useEffect(() => {
+		if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+	}, [blocks]);
+
+	const getItemDisplayName = useCallback(
+		(item: SpaceMissingItem) => (tCatalog as (key: string) => string)("item." + item.key) || item.name,
+		[tCatalog]
+	);
 
 	const handleOpen = useCallback(async () => {
 		setOpen(true);
 		setLoading(true);
 		setError(null);
-		setResult(null);
-		setStepIndex(0);
+		setBlocks([]);
+		setProgressText("");
+		setStreamDone(false);
 		setAdopted(new Set());
-		try {
-			const data = await loadRecommendations();
-			if ("error" in data) {
-				setError(data.error);
-			} else {
-				setResult(data);
+		setIgnored(new Set());
+		setAdoptDialogBlock(null);
+		streamAbortRef.current = new AbortController();
+		hasReceivedSpaceStartRef.current = false;
+
+		await streamRecommendations((event: StreamEvent) => {
+			switch (event.type) {
+				case "space_start":
+					hasReceivedSpaceStartRef.current = true;
+					setBlocks((prev) => [
+						...prev,
+						{
+							spaceId: event.spaceId,
+							spaceName: event.spaceName,
+							fullText: "",
+							displayedLength: 0,
+							missingItems: [],
+							spaceEnd: false,
+						},
+					]);
+					setLoading(false);
+					break;
+				case "text":
+					if (!hasReceivedSpaceStartRef.current) {
+						setProgressText((p) => (p ? p + "\n" : "") + event.text);
+					} else {
+						setBlocks((prev) => {
+							if (prev.length === 0) return prev;
+							const last = prev[prev.length - 1];
+							return [...prev.slice(0, -1), { ...last, fullText: last.fullText + event.text }];
+						});
+					}
+					break;
+				case "data":
+					setBlocks((prev) => {
+						if (prev.length === 0) return prev;
+						const last = prev[prev.length - 1];
+						return [...prev.slice(0, -1), { ...last, missingItems: event.missingItems }];
+					});
+					break;
+				case "space_end":
+					setBlocks((prev) => {
+						if (prev.length === 0) return prev;
+						const last = prev[prev.length - 1];
+						return [...prev.slice(0, -1), { ...last, spaceEnd: true }];
+					});
+					break;
+				case "error":
+					setError(event.message);
+					setLoading(false);
+					break;
+				case "done":
+					setStreamDone(true);
+					setLoading(false);
+					break;
+				default:
+					break;
 			}
-		} finally {
-			setLoading(false);
-		}
+		});
 	}, []);
 
-	const getItemDisplayName = useCallback(
-		(item: SpaceMissingItem) =>
-			(tCatalog as (key: string) => string)("item." + item.key) || item.name,
-		[tCatalog]
-	);
-
-	const handleAdopt = useCallback(
+	const handleAdoptOne = useCallback(
 		async (spaceId: string, item: SpaceMissingItem) => {
 			const key = `${spaceId}|${item.key}`;
 			if (adopted.has(key)) return;
@@ -84,7 +158,7 @@ export function AiSuggestionsPanel() {
 				const res = await createNewAssetTodoAction({
 					spaceId,
 					name: displayName,
-					needQty: item.needQty,
+					needQty: typeof item.needQty === "number" && item.needQty > 0 ? item.needQty : 1,
 					unit: item.unit ?? null,
 				});
 				if (res.ok) {
@@ -100,17 +174,21 @@ export function AiSuggestionsPanel() {
 		[adopted, t, getItemDisplayName]
 	);
 
-	const handleIgnore = useCallback((_spaceId: string, _item: SpaceMissingItem) => {}, []);
+	const handleOpenAdoptDialog = useCallback((block: StreamBlock) => {
+		setAdoptDialogBlock(block);
+	}, []);
 
-	const handleNext = useCallback(() => {
-		if (stepIndex >= totalSteps - 1) {
-			setStepIndex(totalSteps);
-		} else {
-			setStepIndex((i) => i + 1);
-		}
-	}, [stepIndex, totalSteps]);
+	const handleIgnoreOne = useCallback((spaceId: string, item: SpaceMissingItem) => {
+		setIgnored((prev) => new Set(prev).add(`${spaceId}|${item.key}`));
+	}, []);
 
-	const handleClose = useCallback(() => setOpen(false), []);
+	const handleClose = useCallback(() => {
+		streamAbortRef.current?.abort();
+		setOpen(false);
+	}, []);
+
+	const canClose = !loading || streamDone || !!error;
+	const hasBlocks = blocks.length > 0;
 
 	return (
 		<>
@@ -124,148 +202,182 @@ export function AiSuggestionsPanel() {
 
 			<Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
 				<DialogContent
-					className="flex h-[min(420px,85vh)] max-w-md flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xl **:data-[slot=dialog-close]:text-muted-foreground **:data-[slot=dialog-close]:rounded-lg **:data-[slot=dialog-close]:p-2 **:data-[slot=dialog-close]:hover:text-foreground"
+					className="flex h-[min(720px,92vh)] max-w-xl flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xl **:data-[slot=dialog-close]:text-muted-foreground **:data-[slot=dialog-close]:rounded-lg **:data-[slot=dialog-close]:p-2 **:data-[slot=dialog-close]:hover:text-foreground"
 					overlayClassName="bg-black/40"
-					showCloseButton={step !== "loading"}
+					showCloseButton={canClose}
 				>
-					<DialogHeader className="gap-3 text-left">
-						<DialogTitle className="text-xl font-semibold leading-tight text-card-foreground sm:text-[22px]">
-							{step === "loading" && t("loading")}
-							{step === "space" && currentSpace && t("spaceRecommend", { name: currentSpace.spaceName })}
-							{step === "done" && t("done")}
+					<DialogHeader className="shrink-0 gap-2 text-left">
+						<DialogTitle className="flex items-center gap-2 text-xl font-semibold leading-tight text-card-foreground sm:text-[22px]">
+							<Sparkles className="size-5 text-amber-500" aria-hidden />
+							{streamDone ? t("done") : t("checking")}
 						</DialogTitle>
-						{step === "loading" && (
-							<DialogDescription className="text-sm leading-relaxed text-muted-foreground">
-								{t("loadingHint")}
-							</DialogDescription>
-						)}
-						{step === "space" && currentSpace && (
-							<DialogDescription className="text-sm leading-relaxed text-muted-foreground">
-								{t("stepHint", { current: stepIndex + 1, total: totalSteps })}
-							</DialogDescription>
-						)}
-						{step === "done" && (
-							<DialogDescription className="text-sm leading-relaxed text-muted-foreground">
-								{totalSteps === 0 ? error ?? t("noGaps") : t("allDone")}
-							</DialogDescription>
-						)}
+						<DialogDescription className="text-sm leading-relaxed text-muted-foreground">
+							{loading && !hasBlocks && t("checkingSpace")}
+							{error && error}
+							{streamDone && !error && hasBlocks && t("allDone")}
+							{streamDone && !error && !hasBlocks && t("noGaps")}
+						</DialogDescription>
 					</DialogHeader>
 
-					{step === "space" && totalSteps > 0 && (
-						<div
-							className="h-2 shrink-0 w-full overflow-hidden rounded-full bg-muted"
-							role="progressbar"
-							aria-valuenow={Math.round(progressValue)}
-							aria-valuemin={0}
-							aria-valuemax={100}
-						>
-							<div
-								className="h-full rounded-full bg-primary transition-transform duration-300 ease-out"
-								style={{ width: `${progressValue}%` }}
-							/>
+					{/* 准备阶段进度文案：收到即显示，避免长时间白屏（仅在没有空间块时单独占位） */}
+					{progressText && !hasBlocks && (
+						<div className="scrollbar-dialog min-h-0 flex-1 overflow-y-auto rounded-xl border border-border/80 bg-muted/30 py-3 px-4">
+							<p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+								{progressText}
+							</p>
+							{loading && !hasBlocks && (
+								<div className="mt-4 flex items-center justify-center gap-2">
+									<Loader2 className="size-4 animate-spin text-primary" aria-hidden />
+									<span className="text-xs text-muted-foreground">{t("loadingLabel")}</span>
+								</div>
+							)}
 						</div>
 					)}
 
-					{step === "loading" && (
-						<div className="flex flex-col items-center justify-center gap-4 py-8">
-							<Loader2
-								className="size-10 animate-spin text-muted-foreground"
-								aria-hidden
-							/>
-							<span className="text-sm leading-relaxed text-muted-foreground">
-								{t("loadingLabel")}
-							</span>
+					{/* Loading 动画：仅在没有收到任何空间且尚无进度文案时显示 */}
+					{loading && !hasBlocks && !progressText && (
+						<div className="flex flex-1 flex-col items-center justify-center gap-6 py-8">
+							<div className="relative flex items-center justify-center">
+								<div className="absolute h-14 w-14 animate-ping rounded-full bg-primary/20" />
+								<div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+									<Loader2 className="size-6 animate-spin text-primary" aria-hidden />
+								</div>
+							</div>
+							<div className="flex gap-1.5">
+								<span className="h-2 w-2 animate-bounce rounded-full bg-primary [animation-delay:0ms]" />
+								<span className="h-2 w-2 animate-bounce rounded-full bg-primary [animation-delay:150ms]" />
+								<span className="h-2 w-2 animate-bounce rounded-full bg-primary [animation-delay:300ms]" />
+							</div>
+							<span className="text-sm text-muted-foreground">{t("loadingLabel")}</span>
 						</div>
 					)}
 
-					{step === "space" && currentSpace && (
+					{/* 流式内容区：按空间一块一块展示，每块仅一个「采纳」按钮，点击后展开列表可接受/忽略 */}
+					{hasBlocks && (
 						<div
 							ref={scrollRef}
-							className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-1"
+							className="scrollbar-dialog min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-xl border border-border/80 bg-muted/30 py-3 px-4"
 						>
-							<ul className="space-y-3" role="list">
-								{currentSpace.missingItems.map((item) => {
-									const key = `${currentSpace.spaceId}|${item.key}`;
-									const isAdopted = adopted.has(key);
-									const isAdopting = adoptingKey === key;
-									return (
-										<li
-											key={item.key}
-											className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-border bg-muted/50 px-4 py-3 transition-shadow hover:shadow-sm"
-										>
-											<div className="min-w-0 flex-1 text-sm">
-												<span className="font-medium text-foreground">{getItemDisplayName(item)}</span>
-												{(item.needQty > 0 || item.unit) && (
-													<span className="ml-2 text-muted-foreground">
-														{item.needQty > 0 && t("needQty", { qty: item.needQty })}
-														{item.unit && ` ${item.unit}`}
-													</span>
-												)}
-											</div>
-											<div className="flex shrink-0 flex-wrap gap-2">
+							<div className="space-y-6">
+								{progressText && (
+									<div className="rounded-lg border border-border/50 bg-muted/50 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+										{progressText}
+									</div>
+								)}
+								{blocks.map((block, idx) => (
+									<div
+										key={block.spaceId + idx}
+										className="rounded-xl border border-border/60 bg-card p-4 shadow-sm"
+									>
+										<p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+											{block.spaceName}
+										</p>
+										{/* 流式文字（打字机效果）；检查中时末尾显示 loading 图标 */}
+										<div className="min-h-[1.5em] flex flex-wrap items-center gap-1 text-sm leading-relaxed text-foreground">
+											{block.fullText.slice(0, block.displayedLength)}
+											{block.displayedLength < block.fullText.length && (
+												<span className="inline-block h-4 w-0.5 animate-pulse bg-primary align-middle" />
+											)}
+											{((!block.spaceEnd && block.fullText.length > 0) || block.displayedLength < block.fullText.length) && (
+												<Loader2 className="size-4 shrink-0 animate-spin text-primary" aria-hidden />
+											)}
+										</div>
+										{/* 每块一个「采纳」按钮，点击后打开独立弹窗 */}
+										{block.missingItems.length > 0 && (
+											<div className="mt-3">
 												<Button
 													size="sm"
-													className={
-														isAdopted
-															? "min-w-[72px] rounded-lg border-0 bg-muted text-muted-foreground shadow-none"
-															: "min-w-[72px] rounded-lg border-0 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
-													}
-													disabled={isAdopted || isAdopting}
-													onClick={() => handleAdopt(currentSpace.spaceId, item)}
+													className="rounded-xl px-4 font-medium"
+													onClick={() => handleOpenAdoptDialog(block)}
 												>
-													{isAdopted ? (
-														<>
-															<Check className="size-4 shrink-0" aria-hidden />
-															{t("adopted")}
-														</>
-													) : isAdopting ? (
-														<>
-															<Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
-															{t("adopting")}
-														</>
-													) : (
-														t("adopt")
-													)}
-												</Button>
-												<Button
-													size="sm"
-													variant="ghost"
-													className="min-w-[56px] rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
-													onClick={() => handleIgnore(currentSpace.spaceId, item)}
-												>
-													{t("ignore")}
+													{t("adoptSuggestions")}
 												</Button>
 											</div>
-										</li>
-									);
-								})}
-							</ul>
-						</div>
-					)}
-
-					{step === "done" && !error && totalSteps > 0 && (
-						<div className="rounded-xl border border-border bg-muted/50 px-4 py-4 text-sm leading-relaxed text-muted-foreground">
-							{t("summary", { total: totalSteps })}
+										)}
+									</div>
+								))}
+							</div>
 						</div>
 					)}
 
 					<DialogFooter className="shrink-0 gap-2 border-t border-border pt-4">
-						{step === "space" && (
-							<Button
-								onClick={handleNext}
-								className="min-h-12 min-w-[120px] rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
-							>
-								{isLastSpace ? t("finish") : t("nextOrDone")}
-							</Button>
-						)}
-						{step === "done" && (
+						{streamDone && (
 							<Button
 								onClick={handleClose}
-								className="min-h-12 min-w-[100px] rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+								className="min-h-11 min-w-[100px] rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
 							>
 								{t("close")}
 							</Button>
 						)}
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* 采纳：单独弹窗，可逐条接受或忽略 */}
+			<Dialog open={!!adoptDialogBlock} onOpenChange={(open) => !open && setAdoptDialogBlock(null)}>
+				<DialogContent className="max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl">
+					<DialogHeader>
+						<DialogTitle className="text-lg font-semibold">
+							{adoptDialogBlock ? `${adoptDialogBlock.spaceName} - ${t("adoptSuggestions")}` : ""}
+						</DialogTitle>
+						<DialogDescription className="text-sm text-muted-foreground">
+							可逐条采纳或忽略
+						</DialogDescription>
+					</DialogHeader>
+					{adoptDialogBlock && (
+						<div className="scrollbar-dialog max-h-64 overflow-y-auto rounded-lg border border-border/60 bg-muted/30 p-2">
+							<ul className="space-y-1.5" role="list">
+								{adoptDialogBlock.missingItems
+									.filter((item) => !ignored.has(`${adoptDialogBlock.spaceId}|${item.key}`))
+									.map((item) => {
+										const key = `${adoptDialogBlock.spaceId}|${item.key}`;
+										const isAdopted = adopted.has(key);
+										const isAdopting = adoptingKey === key;
+										return (
+											<li
+												key={item.key}
+												className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-card px-3 py-2 text-sm"
+											>
+												<span className="font-medium text-foreground">
+													{getItemDisplayName(item)}
+													{item.needQty > 1 && (
+														<span className="ml-1.5 text-muted-foreground">x{item.needQty}</span>
+													)}
+												</span>
+												<div className="flex shrink-0 gap-1.5">
+													<Button
+														size="sm"
+														className="h-8 rounded-lg"
+														disabled={isAdopted || isAdopting}
+														onClick={() => handleAdoptOne(adoptDialogBlock.spaceId, item)}
+													>
+														{isAdopted ? (
+															<><Check className="size-3.5" /> {t("adopted")}</>
+														) : isAdopting ? (
+															<Loader2 className="size-3.5 animate-spin" />
+														) : (
+															t("adopt")
+														)}
+													</Button>
+													<Button
+														size="sm"
+														variant="ghost"
+														className="h-8 rounded-lg text-muted-foreground hover:text-foreground"
+														onClick={() => handleIgnoreOne(adoptDialogBlock.spaceId, item)}
+													>
+														{t("ignore")}
+													</Button>
+												</div>
+											</li>
+										);
+									})}
+							</ul>
+						</div>
+					)}
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setAdoptDialogBlock(null)}>
+							{t("close")}
+						</Button>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>

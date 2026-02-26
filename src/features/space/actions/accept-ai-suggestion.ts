@@ -64,6 +64,7 @@ export async function createNewAssetTodoAction(params: {
   });
   if (!space) return { ok: false, error: "空间不存在或无权操作" };
 
+  const qty = typeof needQty === "number" && needQty > 0 ? needQty : 1;
   await prisma.action.create({
     data: {
       spaceId,
@@ -71,7 +72,7 @@ export async function createNewAssetTodoAction(params: {
       status: "OPEN",
       payload: {
         name: name.trim().slice(0, 191),
-        needQty: needQty > 0 ? needQty : 0,
+        needQty: qty,
         unit: unit?.trim().slice(0, 50) ?? null,
       },
     },

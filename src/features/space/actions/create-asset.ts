@@ -69,6 +69,12 @@ export async function createAsset(
 			spaceId,
 		};
 
+		// 静态物品：数量（默认 1）与单位
+		if (data.kind === AssetKind.STATIC) {
+			assetData.quantity = data.quantity ?? 1;
+			if (data.unit) assetData.unit = data.unit;
+		}
+
 		// 消耗型字段
 		if (data.kind === AssetKind.CONSUMABLE) {
 			if (data.quantity !== undefined) assetData.quantity = data.quantity;

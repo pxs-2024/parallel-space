@@ -68,7 +68,7 @@ export function AssetDetailDrawer({ asset, spaceId, onClose, onUpdated }: AssetD
 	);
 }
 
-type EditingDetailKey = "unit" | "reorderPoint" | "consumeIntervalDays" | "consumeAmountPerTime" | "due";
+type EditingDetailKey = "quantity" | "unit" | "reorderPoint" | "consumeIntervalDays" | "consumeAmountPerTime" | "due";
 
 function AssetDetailDrawerContent({
 	asset,
@@ -82,6 +82,7 @@ function AssetDetailDrawerContent({
 	const [editingDesc, setEditingDesc] = useState(false);
 	const [editDesc, setEditDesc] = useState(asset.description ?? "");
 	const [editingDetail, setEditingDetail] = useState<EditingDetailKey | null>(null);
+	const [editQuantity, setEditQuantity] = useState(String(asset.quantity ?? ""));
 	const [editUnit, setEditUnit] = useState(asset.unit ?? "");
 	const [editReorderPoint, setEditReorderPoint] = useState(String(asset.reorderPoint ?? ""));
 	const [editConsumeIntervalDays, setEditConsumeIntervalDays] = useState(String(asset.consumeIntervalDays ?? ""));
@@ -91,12 +92,13 @@ function AssetDetailDrawerContent({
 	useEffect(() => {
 		setEditName(asset.name);
 		setEditDesc(asset.description ?? "");
+		setEditQuantity(String(asset.quantity ?? ""));
 		setEditUnit(asset.unit ?? "");
 		setEditReorderPoint(String(asset.reorderPoint ?? ""));
 		setEditConsumeIntervalDays(String(asset.consumeIntervalDays ?? ""));
 		setEditConsumeAmountPerTime(String(asset.consumeAmountPerTime ?? ""));
 		setEditDueStr(toDateInputValue(asset.nextDueAt ?? asset.dueAt ?? null));
-	}, [asset.id, asset.name, asset.description, asset.unit, asset.reorderPoint, asset.consumeIntervalDays, asset.consumeAmountPerTime, asset.dueAt, asset.nextDueAt]);
+	}, [asset.id, asset.name, asset.description, asset.quantity, asset.unit, asset.reorderPoint, asset.consumeIntervalDays, asset.consumeAmountPerTime, asset.dueAt, asset.nextDueAt]);
 
 	const handleSaveName = async () => {
 		const name = editName.trim();
@@ -127,7 +129,15 @@ function AssetDetailDrawerContent({
 		if (!editingDetail) return;
 		let data: Parameters<typeof updateAssetDetail>[2] = {};
 		let patch: DetailPatch = {};
-		if (editingDetail === "unit") {
+		if (editingDetail === "quantity") {
+			const v = editQuantity.trim() === "" ? null : parseInt(editQuantity, 10);
+			if (v !== null && (Number.isNaN(v) || v < 0)) {
+				toast.error("数量请填写非负整数");
+				return;
+			}
+			data.quantity = v ?? 0;
+			patch.quantity = data.quantity;
+		} else if (editingDetail === "unit") {
 			data.unit = editUnit.trim() || null;
 			patch.unit = data.unit;
 		} else if (editingDetail === "reorderPoint") {
@@ -173,6 +183,7 @@ function AssetDetailDrawerContent({
 
 	const cancelEditDetail = () => {
 		setEditingDetail(null);
+		setEditQuantity(String(asset.quantity ?? ""));
 		setEditUnit(asset.unit ?? "");
 		setEditReorderPoint(String(asset.reorderPoint ?? ""));
 		setEditConsumeIntervalDays(String(asset.consumeIntervalDays ?? ""));
@@ -253,15 +264,40 @@ function AssetDetailDrawerContent({
 								)}
 							</dd>
 						</div>
-						{/* 数量（仅展示） */}
-						{asset.kind === "CONSUMABLE" && asset.quantity != null && (
+						{/* 数量：静态与消耗型均可编辑 */}
+						{(asset.kind === "STATIC" || asset.kind === "CONSUMABLE") && (
 							<div>
 								<dt className="text-xs font-medium text-muted-foreground mb-0.5">{t("quantity")}</dt>
-								<dd className="text-foreground">{qtyText}</dd>
+								<dd>
+									{editingDetail === "quantity" ? (
+										<div className="flex flex-col gap-1.5">
+											<input
+												type="number"
+												min={0}
+												value={editQuantity}
+												onChange={(e) => setEditQuantity(e.target.value)}
+												className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+												placeholder={t("quantity")}
+												autoFocus
+											/>
+											<div className="flex gap-1">
+												<Button size="sm" className="h-7" onClick={handleSaveDetail}>{t("save")}</Button>
+												<Button variant="outline" size="sm" className="h-7" onClick={cancelEditDetail}>{t("cancel")}</Button>
+											</div>
+										</div>
+									) : (
+										<div className="flex items-center gap-1">
+											<span className="text-foreground">{asset.quantity != null ? String(asset.quantity) : "—"}</span>
+											<Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground" onClick={() => setEditingDetail("quantity")} aria-label={t("edit")}>
+												<Pencil className="size-3" />
+											</Button>
+										</div>
+									)}
+								</dd>
 							</div>
 						)}
-						{/* 单位：仅消耗型展示并可编辑 */}
-						{asset.kind === "CONSUMABLE" && (
+						{/* 单位：静态与消耗型均可编辑（输入） */}
+						{(asset.kind === "STATIC" || asset.kind === "CONSUMABLE") && (
 							<div>
 								<dt className="text-xs font-medium text-muted-foreground mb-0.5">{t("unit")}</dt>
 								<dd>

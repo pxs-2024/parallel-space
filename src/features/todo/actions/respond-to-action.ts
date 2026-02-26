@@ -33,8 +33,9 @@ export async function completeNewAssetAction(
 
 	const payload = (action.payload as { name?: string; unit?: string | null; needQty?: number } | null) ?? {};
 	const name = typeof payload.name === "string" ? payload.name.trim().slice(0, 191) : "未命名";
-	const needQty = typeof payload.needQty === "number" && payload.needQty >= 0 ? payload.needQty : 0;
+	const needQty = typeof payload.needQty === "number" && payload.needQty >= 0 ? payload.needQty : 1;
 	const unit = typeof payload.unit === "string" ? payload.unit.trim().slice(0, 50) || null : null;
+	const qty = needQty > 0 ? needQty : 1;
 
 	await prisma.$transaction([
 		prisma.asset.create({
@@ -42,9 +43,9 @@ export async function completeNewAssetAction(
 				spaceId,
 				name,
 				kind: AssetKind.STATIC,
-				quantity: 0,
+				quantity: qty,
 				unit,
-				reorderPoint: needQty > 0 ? needQty : 1,
+				reorderPoint: qty,
 			},
 		}),
 		prisma.action.update({

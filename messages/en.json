@@ -136,7 +136,12 @@
     "finish": "Finish",
     "close": "Close",
     "toastAdopted": "Added to To-do: {name}",
-    "toastError": "Adopt failed"
+    "toastError": "Adopt failed",
+    "adoptSuggestions": "Adopt",
+    "adoptAllInSpace": "Adopt all in this space",
+    "checkingSpace": "Checking space configuration…",
+    "checking": "Checking",
+    "closeList": "Collapse"
   },
   "drawer": {
     "resizeHandle": "Drag to resize height",

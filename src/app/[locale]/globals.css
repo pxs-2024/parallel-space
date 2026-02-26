@@ -274,3 +274,24 @@
 .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
 	background: oklch(0.7 0.02 286 / 0.6);
 }
+
+/* 弹窗内滚动条：更细、圆角、与边框协调 */
+.scrollbar-dialog {
+	scrollbar-width: thin;
+	scrollbar-color: hsl(var(--border)) transparent;
+}
+.scrollbar-dialog::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+.scrollbar-dialog::-webkit-scrollbar-track {
+	background: transparent;
+	border-radius: 3px;
+}
+.scrollbar-dialog::-webkit-scrollbar-thumb {
+	background: hsl(var(--border));
+	border-radius: 999px;
+}
+.scrollbar-dialog::-webkit-scrollbar-thumb:hover {
+	background: hsl(var(--muted-foreground) / 0.4);
+}

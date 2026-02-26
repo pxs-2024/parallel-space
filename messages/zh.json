@@ -136,7 +136,12 @@
     "finish": "完成",
     "close": "关闭",
     "toastAdopted": "已加入待办：{name}",
-    "toastError": "采纳失败"
+    "toastError": "采纳失败",
+    "adoptSuggestions": "采纳",
+    "adoptAllInSpace": "采纳本空间全部",
+    "checkingSpace": "正在检查空间配置…",
+    "checking": "检查中",
+    "closeList": "收起"
   },
   "drawer": {
     "resizeHandle": "拖动调整高度",

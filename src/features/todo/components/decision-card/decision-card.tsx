@@ -49,12 +49,10 @@ export function DecisionCard({ item, onRemoving, spaceOptions = [] }: DecisionCa
 	if (item.kind === "newAsset") {
 		const data = item.data;
 		const name = data.name;
-		const needText =
-			data.needQty > 0
-				? data.unit
-					? `需要 ${data.needQty} ${data.unit}`
-					: `需要 ${data.needQty} 份`
-				: "";
+		const qty = typeof data.needQty === "number" && data.needQty > 0 ? data.needQty : 1;
+		const needText = data.unit
+			? `需要 ${qty} ${data.unit}`
+			: `需要 ${qty} 份`;
 		return (
 			<article
 				className={cn(
@@ -99,7 +97,7 @@ export function DecisionCard({ item, onRemoving, spaceOptions = [] }: DecisionCa
 								size="sm"
 								disabled={busy || !selectedSpaceId}
 								onClick={() => {
-									if (selectedSpaceId) handlePurchased(a.id, selectedSpaceId);
+									if (selectedSpaceId) handlePurchased(item.data.id, selectedSpaceId);
 								}}
 							>
 								{busy ? "处理中…" : "确定"}
