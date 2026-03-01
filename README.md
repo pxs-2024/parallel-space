@@ -1,10 +1,10 @@
 # 平行空间（Parallel Space）
 
-规则驱动的个人资产管理：用可视化画布把「物品 / 资产」与「待办」连起来，在需要时提醒你。
+个人资产管理：用可视化画布把「物品 / 资产」与「待办」连起来，在需要时提醒你。
 
 > 核心价值：**让“我拥有的东西”，在需要我决策之前提醒我。**
 
-**技术栈**：Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS 4 / shadcn/ui + Prisma（client + pg adapter）+ PostgreSQL，Session + Argon2 登录，next-intl 中英国际化，Vercel Cron 定时生成待办。画布拖拽（dnd-kit）、URL 状态（nuqs）、Toast（sonner）、日期选择（react-day-picker / date-fns）等。
+**技术栈**：Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS 4 / shadcn/ui + Prisma（client + pg adapter）+ PostgreSQL，Session + Argon2 登录，next-intl 中英国际化，Vercel Cron 定时生成待办。画布（canvas）、URL 状态（nuqs）等。
 
 ---
 
@@ -64,13 +64,11 @@ pnpm dev
 | 操作 | 说明 |
 |------|------|
 | 进入页面 | 侧栏点击「待办」。列表为待处理事项（补货、到期、待丢弃、新增物品等）。 |
-| 搜索 | 顶部搜索框输入后防抖筛选。 |
+| 搜索 | 顶部搜索框输入筛选。 |
 | 筛选 | 按类型、时间等筛选（与 URL 同步）。 |
 | 补充数量 | 补货类卡片：点击「已补充」或输入数量后确认，成功后有 Toast。 |
 | 选择到期时间 | 时间型到期类：点击「选择到期时间」→ 日历选日 → 确认更新或取消。 |
-| 确认丢弃 | 待丢弃类：点击「确认丢弃」。 |
 | 新增物品（待买） | 来自 AI 建议采纳的项：选择目标空间后完成，系统在该空间创建物品并关闭待办。 |
-| 忽略 | 单条可忽略（一天/一星期/一个月）；支持批量忽略。 |
 
 ### 物品管理页（/spaces）
 
